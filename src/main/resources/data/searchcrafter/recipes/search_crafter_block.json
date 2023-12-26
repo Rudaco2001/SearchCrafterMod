@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "###",
+    "O#O",
+    "OOO"
+  ],
+  "key": {
+    "#": {
+      "item": "searchcrafter:sunanium"
+    },
+    "O":{
+      "item": "searchcrafter:sunanium_block"
+    }
+  },
+  "result": {
+    "item": "searchcrafter:search_crafter_block"
+  }
+}

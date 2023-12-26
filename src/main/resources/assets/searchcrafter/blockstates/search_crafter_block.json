@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "searchcrafter:block/search_crafter_block" }
+  }
+}

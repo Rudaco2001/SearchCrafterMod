@@ -1,0 +1,11 @@
+{
+  "parent": "block/cube_all",
+  "textures": {
+    "all": "searchcrafter:block/search_crafter_block"
+  },
+
+  "variants": {
+    "": { "model": "searchcrafter:block/search_crafter_block" }
+  }
+
+}

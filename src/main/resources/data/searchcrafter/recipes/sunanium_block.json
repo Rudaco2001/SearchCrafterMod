@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "###",
+    "###",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "searchcrafter:sunanium"
+    }
+  },
+  "result": {
+    "item": "searchcrafter:sunanium_block"
+  }
+}

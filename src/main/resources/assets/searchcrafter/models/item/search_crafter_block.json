@@ -1,0 +1,6 @@
+{
+  "parent": "searchcrafter:block/search_crafter_block",
+  "textures": {
+    "layer0": "searchcrafter:block/search_crafter_block"
+  }
+}
