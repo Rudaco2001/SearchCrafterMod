@@ -1,0 +1,10 @@
+
+This project uses the following open-source libraries:
+
+- Minecraft Forge: A modding framework for Minecraft.
+  Website: https://files.minecraftforge.net/
+
+- Lightweight Java Game Library (LWJGL): A Java library for creating windows, handling OpenGL context, and managing input.
+  Website: https://www.lwjgl.org/
+
+We appreciate the authors of these libraries for their work.
