@@ -3,7 +3,6 @@ package com.rudaco.searchcrafter.item;
 import com.rudaco.searchcrafter.SearchCrafter;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Block;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;

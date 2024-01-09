@@ -1,28 +1,19 @@
 package com.rudaco.searchcrafter.screen;
 
-import ca.weblite.objc.Message;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.rudaco.searchcrafter.SearchCrafter;
-import com.rudaco.searchcrafter.block.entity.SearchCrafterTable;
 import com.rudaco.searchcrafter.staticInfo.StaticInfo;
-import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.ComponentContents;
-import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.ArrayList;
-import java.util.List;
 
 
 public class SearchCrafterTableScreen extends AbstractContainerScreen<SearchCrafterTableMenu> {

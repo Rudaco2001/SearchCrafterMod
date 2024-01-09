@@ -1,7 +1,6 @@
 package com.rudaco.searchcrafter.screen;
 
 import com.rudaco.searchcrafter.SearchCrafter;
-import com.rudaco.searchcrafter.block.entity.SearchCrafterTable;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraftforge.common.extensions.IForgeMenuType;

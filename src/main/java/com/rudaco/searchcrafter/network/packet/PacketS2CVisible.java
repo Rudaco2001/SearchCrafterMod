@@ -1,19 +1,7 @@
 package com.rudaco.searchcrafter.network.packet;
 
-import com.rudaco.searchcrafter.block.custom.SearchCrafterTableBlock;
-import com.rudaco.searchcrafter.block.entity.SearchCrafterTable;
-import com.rudaco.searchcrafter.network.MySimpleChannel;
-import com.rudaco.searchcrafter.staticInfo.StaticInfo;
-import com.rudaco.searchcrafter.staticInfo.Utils;
-import com.rudaco.searchcrafter.staticInfo.Vector3;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;

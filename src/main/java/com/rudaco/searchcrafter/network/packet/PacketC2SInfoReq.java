@@ -3,8 +3,6 @@ package com.rudaco.searchcrafter.network.packet;
 import com.rudaco.searchcrafter.block.custom.SearchCrafterTableBlock;
 import com.rudaco.searchcrafter.block.entity.SearchCrafterTable;
 import com.rudaco.searchcrafter.network.MySimpleChannel;
-import com.rudaco.searchcrafter.staticInfo.Utils;
-import com.rudaco.searchcrafter.staticInfo.Vector3;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;

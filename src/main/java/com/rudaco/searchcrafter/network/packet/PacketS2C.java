@@ -2,7 +2,6 @@ package com.rudaco.searchcrafter.network.packet;
 
 import com.rudaco.searchcrafter.screen.CraftableInfo;
 import com.rudaco.searchcrafter.staticInfo.StaticInfo;
-import io.netty.buffer.ByteBuf;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
