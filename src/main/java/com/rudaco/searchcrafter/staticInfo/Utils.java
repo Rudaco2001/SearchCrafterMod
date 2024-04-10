@@ -26,6 +26,7 @@ import net.minecraftforge.items.IItemHandler;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Utils {
 
@@ -407,6 +408,125 @@ public class Utils {
         return bestRecipeResult;
     }
 
+
+    public static ArrayList<CraftableInfo> getCraftableInfo(boolean first, Item searcheditem, ArrayList<CraftableInfo> modificableInfo, ArrayList<Item> alreadyChecked, CopyOnWriteArrayList<CraftableInfo> rest, IntHolder neededCount, Map<Pair<Item,Integer>, Pair<Item, Boolean>> memoizationMap) {
+        ArrayList<CraftableInfo> resultlist = new ArrayList<>();
+
+        for (CraftableInfo cr : rest) {
+            if (cr.item.equals(searcheditem) && cr.quant > 0) {
+                cr.quant--;
+                if(cr.quant == 0) rest.remove(cr);
+                return resultlist;
+            }
+        }
+
+        if(!first){
+            if(isInInventory(searcheditem, modificableInfo)){
+                resultlist.add(new CraftableInfo(searcheditem, 1));
+                return resultlist;
+            }
+        }
+
+        if (alreadyChecked.contains(searcheditem)) {
+            resultlist.add(new CraftableInfo(searcheditem, 1));
+            neededCount.number++;
+            return resultlist;
+        }
+
+        alreadyChecked.add(searcheditem);
+        ArrayList<CraftingRecipe> recipes = getRecipe(searcheditem);
+        if (recipes.isEmpty()) {
+            resultlist.add(new CraftableInfo(searcheditem, 1));
+            neededCount.number++;
+            return resultlist;
+        }
+
+        ArrayList<CraftableInfo> bestRecipeResult = new ArrayList<>();
+        ArrayList<CraftableInfo> bestRecipeRest = new ArrayList<>();
+        ArrayList<CraftableInfo> bestRecipeMod = new ArrayList<>();
+        int bestRecipeNeeded = -1;
+        CraftingRecipe bestRecipe = null;
+        for(CraftingRecipe recipe: recipes){
+            ArrayList<CraftableInfo> finalResult = new ArrayList<>();
+            ArrayList<CraftableInfo> persistRest = deepCopyofCraftableInfo(new ArrayList<>(rest));
+            int finalNeeded = 0;
+            ArrayList<CraftableInfo> persistMod = deepCopyofCraftableInfo(modificableInfo);
+            for (Ingredient ing: recipe.getIngredients()){
+                if(ing.getItems().length == 0) continue;
+                int bestNeeded = -1;
+                ArrayList<CraftableInfo> bestResult = new ArrayList<>();
+                ArrayList<CraftableInfo> bestRest = new ArrayList<>();
+                ArrayList<CraftableInfo> bestMod = new ArrayList<>();
+                boolean found = false;
+                Item bestVariant = null;
+                if(memoizationMap.containsKey(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length))){
+                    found = true;
+                    ArrayList<CraftableInfo> copyMod = deepCopyofCraftableInfo(persistMod);
+                    ArrayList<CraftableInfo> result;
+                    ArrayList<CraftableInfo> copyRest = deepCopyofCraftableInfo(persistRest);
+                    IntHolder holder = new IntHolder(0);
+                    result = getCraftableInfo(false, memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).first, copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap);
+                    bestNeeded = holder.number;
+                    bestResult = result;
+                    bestMod = copyMod;
+                    bestRest = copyRest;
+                    if(memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).second && bestNeeded != 0){
+                        bestNeeded = -1;
+                        found = false;
+                    }
+                }
+                if(!found){
+                    for (int i = 0; i < ing.getItems().length; i++) {
+                        ArrayList<CraftableInfo> copyMod = deepCopyofCraftableInfo(persistMod);
+                        ArrayList<CraftableInfo> result;
+                        ArrayList<CraftableInfo> copyRest = deepCopyofCraftableInfo(persistRest);
+                        IntHolder holder = new IntHolder(0);
+                        result = getCraftableInfo(false, ing.getItems()[i].getItem(), copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap);
+                        if(bestNeeded == -1 || holder.number < bestNeeded){
+                            bestNeeded = holder.number;
+                            bestResult = result;
+                            bestMod = copyMod;
+                            bestRest = copyRest;
+                            bestVariant = ing.getItems()[i].getItem();
+                            if(bestNeeded == 0) break;
+                        }
+                    }
+                }
+                persistMod = bestMod;
+                combineLists(bestResult, finalResult);
+                persistRest = bestRest;
+                finalNeeded += bestNeeded;
+                if(!found && ing.getItems().length > 1){
+                    if(bestNeeded == getCraftableListCount(bestResult) && bestNeeded != 0){
+                        memoizationMap.put(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length), new Pair<>(bestVariant, false));
+                    }
+                    else {
+                        memoizationMap.put(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length), new Pair<>(bestVariant, true));
+                    }
+                }
+            }
+            if(bestRecipeNeeded == -1 || finalNeeded < bestRecipeNeeded){
+                bestRecipeNeeded = finalNeeded;
+                bestRecipeResult = finalResult;
+                bestRecipeRest = persistRest;
+                bestRecipeMod = persistMod;
+                bestRecipe = recipe;
+                if(bestRecipeNeeded == 0) break;
+            }
+        }
+        int count = bestRecipe.getResultItem().getCount();
+        if (count > 1) {
+            bestRecipeRest.add(new CraftableInfo(searcheditem, count - 1));
+        }
+        neededCount.number = bestRecipeNeeded;
+        modificableInfo.clear();
+        modificableInfo.addAll(bestRecipeMod);
+        rest.clear();
+        rest.addAll(bestRecipeRest);
+        return bestRecipeResult;
+    }
+
+
     public static void addToCraftableList(ArrayList<CraftableInfo> list, CraftableInfo element) {
         boolean found = false;
         for (CraftableInfo e : list) {
@@ -533,6 +653,9 @@ public class Utils {
 
     }
 
+
+
+
     public static ArrayList<CraftableInfo> deepCopyofCraftableInfo(ArrayList<CraftableInfo> list) {
         ArrayList<CraftableInfo> result = new ArrayList<>();
         for (CraftableInfo info : list) {
@@ -542,6 +665,33 @@ public class Utils {
     }
 
     public static void substractCraftableLists(ArrayList<CraftableInfo> list1, ArrayList<CraftableInfo> list2) {
+
+        for (int i = 0; i < list1.size(); i++) {
+            CraftableInfo ele1 = list1.get(i);
+            for (int j = 0; j < list2.size(); j++) {
+                CraftableInfo ele2 = list2.get(j);
+                if (ele1.item.equals(ele2.item)) {
+                    if (ele1.quant > ele2.quant) {
+                        ele1.quant -= ele2.quant;
+                        list2.remove(j);
+                        j--; // Adjust index to account for removed element
+                    } else if (ele1.quant == ele2.quant) {
+                        list1.remove(i);
+                        list2.remove(j);
+                        i--; // Adjust index to account for removed element
+                        j--; // Adjust index to account for removed element
+                    } else {
+                        ele2.quant -= ele1.quant;
+                        list1.remove(i);
+                        i--; // Adjust index to account for removed element
+                    }
+
+                }
+            }
+        }
+    }
+
+    public static void substractCraftableLists(CopyOnWriteArrayList<CraftableInfo> list1, CopyOnWriteArrayList<CraftableInfo> list2) {
 
         for (int i = 0; i < list1.size(); i++) {
             CraftableInfo ele1 = list1.get(i);

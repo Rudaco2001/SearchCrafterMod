@@ -20,7 +20,12 @@ public class CraftableMenu {
     int width = 100;
     MiniPage toUseObjectsPage = null;
     MenuChestPage notEnoughPage;
-    int objectPerPage = 5;
+
+    int objectsPerRow = 2;
+
+    int objectsPerColumn = 2;
+
+    int objectPerPage;
     protected PageController controller;
     public SearchCrafterTableScreen screen;
     protected Item item;
@@ -45,6 +50,7 @@ public class CraftableMenu {
         this.text = "Se esta intentando craftear:";
         this.count = 1;
         this.rest = rest;
+        this.objectPerPage = objectsPerRow*objectsPerColumn;
     }
 
     public  CraftableMenu(PageController controller, SearchCrafterTableScreen screen, int pageSizeX, int pageSizeY, Item item, ArrayList<CraftableInfo> toUseItems, ArrayList<CraftableInfo> notEnoughItems,ArrayList<CraftableInfo> rest, int count){
@@ -58,6 +64,7 @@ public class CraftableMenu {
         this.text = "Se esta intentando craftear:";
         this.count = count;
         this.rest = rest;
+        this.objectPerPage = objectsPerRow*objectsPerColumn;
     }
 
 
@@ -141,7 +148,7 @@ public class CraftableMenu {
         int maxPage = (toUseItems.size()/objectPerPage) + resto;
         if(maxPage <= 0) maxPage = 1;
         if(toUseObjectsPage != null) toUseObjectsPage.deletePage();
-        toUseObjectsPage = new MiniPage(this, screen, page, objectPerPage, width/2 + 8, 50, e, maxPage);
+        toUseObjectsPage = new MiniPage(this, screen, page, objectsPerColumn, objectsPerRow, width/2 + 8, 50, e, maxPage);
         toUseObjectsPage.renderButtons();
 
     }
@@ -157,7 +164,7 @@ public class CraftableMenu {
         if(maxPage <= 0) maxPage = 1;
 
         if(notEnoughPage != null) notEnoughPage.deletePage();
-        notEnoughPage = new MiniPage2(this, screen, page, objectPerPage, width/2 + 8, 50, e, maxPage);
+        notEnoughPage = new MiniPage2(this, screen, page, objectsPerColumn, objectsPerRow, width/2 + 8, 50, e, maxPage);
         notEnoughPage.renderButtons();
 
     }

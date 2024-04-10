@@ -3,14 +3,15 @@ package com.rudaco.searchcrafter.screen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 
 public class MiniPage extends MenuChestPage{
 
     CraftableMenu menu;
-    public MiniPage(CraftableMenu menu, SearchCrafterTableScreen screen, int pageNumber, int objectCont, int pageSizeX, int pageSizeY, ArrayList<CraftableInfo> elements, int maxPage) {
-        super(null, screen, pageNumber, objectCont, pageSizeX, pageSizeY, elements, maxPage);
+    public MiniPage(CraftableMenu menu, SearchCrafterTableScreen screen, int pageNumber, int objectCont, int objectCount_x, int pageSizeX, int pageSizeY, ArrayList<CraftableInfo> elements, int maxPage) {
+        super(null, screen, pageNumber, objectCont, objectCount_x, pageSizeX, pageSizeY, elements, maxPage);
         this.menu = menu;
     }
 
@@ -21,20 +22,25 @@ public class MiniPage extends MenuChestPage{
 
 
     public void renderButtons(){
-
         this.x = (screen.width - pageSizeX) / 2 + 40;
         this.y = (screen.height - pageSizeY) / 2 - 30;
-
-        int y_size = (pageSizeY-10)/objectCont;
+        int y_padding = 1;
+        int x_padding = 1;
+        int size = (pageSizeY-10-y_padding*(objectCont+1))/objectCont;
         int i = 0;
+        int z = 0;
         for (CraftableInfo info: craftableList){
             String itemName = Language.getInstance().getOrDefault(info.item.getDescriptionId());
-            drawItemButton(x+3, y+(y_size*i)+5, (pageSizeX-6), y_size, itemName + " x" + info.quant, ()->{
-                System.out.println(itemName);
-
-            },0);
-            i++;
+            drawItemButton(x+5 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, itemName, ()->{
+                controller.selectCraft(info.item);
+            }, new ItemStack(info.item), info.quant);
+            z++;
+            if(z > x_objectCont - 1){
+                z = 0;
+                i++;
+            }
         }
+
         int x_size = (pageSizeX)/pageButtonCount;
         int minPage = Math.max(1, (pageNumber-1));
 
@@ -72,12 +78,4 @@ public class MiniPage extends MenuChestPage{
         buttons.add(button);
     }
 
-    protected void drawItemButton(int x, int y, int width, int height, String text, FunctionalInterface action, int texture_id) {
-        CustomButton button = new SmallCustomButton(x, y, width, height, Component.literal(text), b -> {
-            action.ejecutar();
-        }, texture_id);
-        button.maxScale = 0.5f;
-        screen.addButton(button);
-        buttons.add(button);
-    }
 }

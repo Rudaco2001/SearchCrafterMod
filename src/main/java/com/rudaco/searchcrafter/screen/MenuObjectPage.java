@@ -1,12 +1,16 @@
 package com.rudaco.searchcrafter.screen;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 
 public class MenuObjectPage {
+
 
     SearchCrafterTableScreen screen;
 
@@ -20,7 +24,7 @@ public class MenuObjectPage {
     int pageSizeX;
 
     int objectCont;
-
+    int x_objectCont;
     int pageNumber;
 
     int maxPage;
@@ -32,13 +36,14 @@ public class MenuObjectPage {
 
     PageController controller;
 
-    public  MenuObjectPage(PageController controller, SearchCrafterTableScreen screen, int pageNumber, int objectCont, int pageSizeX, int pageSizeY, ArrayList<CraftableInfo> elements, int maxPage){
+    public  MenuObjectPage(PageController controller, SearchCrafterTableScreen screen, int pageNumber, int y_objectCont, int x_objectCont, int pageSizeX, int pageSizeY, ArrayList<CraftableInfo> elements, int maxPage){
         this.screen = screen;
 
         craftableList = elements;
         this.pageSizeX = pageSizeX;
         this.pageSizeY = pageSizeY;
-        this.objectCont = objectCont;
+        this.objectCont = y_objectCont;
+        this.x_objectCont = x_objectCont;
         this.pageNumber = pageNumber;
         this.maxPage = maxPage;
         this.controller = controller;
@@ -49,15 +54,21 @@ public class MenuObjectPage {
 
         this.x = (screen.width - pageSizeX) / 2 - 75;
         this.y = (screen.height - pageSizeY) / 2 - 44;
-
-        int y_size = (pageSizeY-10)/objectCont;
+        int y_padding = 1;
+        int x_padding = 1;
+        int size = (pageSizeY-10-y_padding*(objectCont+1))/objectCont;
         int i = 0;
+        int z = 0;
         for (CraftableInfo info: craftableList){
             String itemName = Language.getInstance().getOrDefault(info.item.getDescriptionId());
-            drawItemButton(x+3, y+(y_size*i)+5, (pageSizeX-6), y_size, itemName, ()->{
+            drawItemButton(x+5 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, itemName, ()->{
                 controller.selectCraft(info.item);
-            },0);
-            i++;
+            }, new ItemStack(info.item), -1);
+            z++;
+            if(z > x_objectCont - 1){
+                z = 0;
+                i++;
+            }
         }
         int x_size = (pageSizeX)/pageButtonCount;
         int minPage = Math.max(1, (pageNumber-1));
@@ -91,10 +102,10 @@ public class MenuObjectPage {
     }
 
 
-    protected void drawItemButton(int x, int y, int width, int height, String text, FunctionalInterface action, int texture_id) {
-        CustomButton button = new CustomButton(x, y, width, height, Component.literal(text), b -> {
+    protected void drawItemButton(int x, int y, int width, int height, String text, FunctionalInterface action, ItemStack item, int number) {
+        CustomImageButton button = new CustomImageButton(x, y, width, height, Component.literal(text), b -> {
             action.ejecutar();
-        }, texture_id);
+        }, item, number);
         screen.addButton(button);
         buttons.add(button);
     }
@@ -125,6 +136,5 @@ public class MenuObjectPage {
     public void refresh(){
         this.changePage(1);
     }
-
 
 }
