@@ -17,8 +17,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.phys.AABB;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import java.util.ArrayList;
@@ -38,16 +38,35 @@ public class Utils {
         ArrayList<CraftableInfo> chestList = new ArrayList<>();
         for (BlockPos pos : BlockPos.betweenClosed(blockPos.offset(-range.x, -range.y, -range.z), blockPos.offset(range.x, range.y, range.z))) {
             if(pos.equals(blockPos))continue;
-
-                BlockEntity blockEntity = level.getBlockEntity(pos);
-                if(blockEntity == null) continue;
-                if (blockEntity instanceof ChestBlockEntity) {
-                    RandomizableContainerBlockEntity chestEntity = (RandomizableContainerBlockEntity) blockEntity;
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if(blockEntity == null) continue;
+            if (blockEntity instanceof ChestBlockEntity) {
+                RandomizableContainerBlockEntity chestEntity = (RandomizableContainerBlockEntity) blockEntity;
+                boolean isRepeated;
+                for (int i = 0; i < chestEntity.getContainerSize(); i++) {
+                    isRepeated = false;
+                    ItemStack stack = chestEntity.getItem(i);
+                    Item item = stack.getItem().asItem();
+                    if(stack.getCount() == 0) continue;
+                    for (CraftableInfo ele : chestList) {
+                        if (ele.item.equals(item)) {
+                            isRepeated = true;
+                            ele.quant += stack.getCount();
+                            break;
+                        }
+                    }
+                    if (!isRepeated) chestList.add(new CraftableInfo(item, stack.getCount()));
+                }
+            }
+            else if(hasInventory(blockEntity)){
+                LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER);
+                itemHandleropt.ifPresent(itemHandler -> {
                     boolean isRepeated;
-                    for (int i = 0; i < chestEntity.getContainerSize(); i++) {
+                    for (int i = 0; i < itemHandler.getSlots(); i++) {
                         isRepeated = false;
-                        ItemStack stack = chestEntity.getItem(i);
+                        ItemStack stack = itemHandler.getStackInSlot(i);
                         Item item = stack.getItem().asItem();
+                        if(stack.getCount() == 0) continue;
                         for (CraftableInfo ele : chestList) {
                             if (ele.item.equals(item)) {
                                 isRepeated = true;
@@ -57,27 +76,9 @@ public class Utils {
                         }
                         if (!isRepeated) chestList.add(new CraftableInfo(item, stack.getCount()));
                     }
-                }
-                else if(hasInventory(blockEntity)){
-                    LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
-                    itemHandleropt.ifPresent(itemHandler -> {
-                        boolean isRepeated;
-                        for (int i = 0; i < itemHandler.getSlots(); i++) {
-                            isRepeated = false;
-                            ItemStack stack = itemHandler.getStackInSlot(i);
-                            Item item = stack.getItem().asItem();
-                            for (CraftableInfo ele : chestList) {
-                                if (ele.item.equals(item)) {
-                                    isRepeated = true;
-                                    ele.quant += stack.getCount();
-                                    break;
-                                }
-                            }
-                            if (!isRepeated) chestList.add(new CraftableInfo(item, stack.getCount()));
-                        }
-                    });
+                });
 
-                }
+            }
 
         }
         return chestList;
@@ -86,20 +87,41 @@ public class Utils {
     private static boolean hasInventory(BlockEntity blockEntity) {
         // Verifica si la entidad de bloque implementa la interfaz Inventory
         assert blockEntity != null;
-        return blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY).isPresent();
+        return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).isPresent();
     }
 
     public static boolean checkItemsInChests(Level level, BlockPos blockPos, Vector3 range, ArrayList<CraftableInfo> toRemove) {
         for (BlockPos pos : BlockPos.betweenClosed(blockPos.offset(-range.x, -range.y, -range.z), blockPos.offset(range.x, range.y, range.z))) {
             if(pos.equals(blockPos))continue;
-                BlockEntity blockEntity = level.getBlockEntity(pos);
-                if(blockEntity == null) continue;
-                if (blockEntity instanceof ChestBlockEntity) {
-                    RandomizableContainerBlockEntity chestEntity = (RandomizableContainerBlockEntity) blockEntity;
-                    for (int i = 0; i < chestEntity.getContainerSize(); i++) {
-                        ItemStack stack = chestEntity.getItem(i);
-                        Item item = stack.getItem().asItem();
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if(blockEntity == null) continue;
+            if (blockEntity instanceof ChestBlockEntity) {
+                RandomizableContainerBlockEntity chestEntity = (RandomizableContainerBlockEntity) blockEntity;
+                for (int i = 0; i < chestEntity.getContainerSize(); i++) {
+                    ItemStack stack = chestEntity.getItem(i);
+                    Item item = stack.getItem().asItem();
 
+                    ArrayList<CraftableInfo> elementsToRemove = new ArrayList<>();
+                    for (CraftableInfo ele : toRemove) {
+                        if (ele.item.equals(item)) {
+                            if (ele.quant > stack.getCount()) {
+                                ele.quant -= stack.getCount();
+                            } else if (ele.quant == stack.getCount()) {
+                                elementsToRemove.add(ele);
+                            } else {
+                                elementsToRemove.add(ele);
+                            }
+                        }
+                    }
+                    toRemove.removeAll(elementsToRemove);
+                }
+            }
+            else if(hasInventory(blockEntity)){
+                LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER);
+                itemHandleropt.ifPresent(itemHandler -> {
+                    for (int i = 0; i < itemHandler.getSlots(); i++) {
+                        ItemStack stack = itemHandler.getStackInSlot(i);
+                        Item item = stack.getItem().asItem();
                         ArrayList<CraftableInfo> elementsToRemove = new ArrayList<>();
                         for (CraftableInfo ele : toRemove) {
                             if (ele.item.equals(item)) {
@@ -114,31 +136,10 @@ public class Utils {
                         }
                         toRemove.removeAll(elementsToRemove);
                     }
-                }
-                else if(hasInventory(blockEntity)){
-                    LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
-                    itemHandleropt.ifPresent(itemHandler -> {
-                        for (int i = 0; i < itemHandler.getSlots(); i++) {
-                            ItemStack stack = itemHandler.getStackInSlot(i);
-                            Item item = stack.getItem().asItem();
-                            ArrayList<CraftableInfo> elementsToRemove = new ArrayList<>();
-                            for (CraftableInfo ele : toRemove) {
-                                if (ele.item.equals(item)) {
-                                    if (ele.quant > stack.getCount()) {
-                                        ele.quant -= stack.getCount();
-                                    } else if (ele.quant == stack.getCount()) {
-                                        elementsToRemove.add(ele);
-                                    } else {
-                                        elementsToRemove.add(ele);
-                                    }
-                                }
-                            }
-                            toRemove.removeAll(elementsToRemove);
-                        }
-                    });
+                });
 
-                }
             }
+        }
 
         return toRemove.isEmpty();
     }
@@ -173,7 +174,7 @@ public class Utils {
                     }
                 }
                 else if(hasInventory(blockEntity)){
-                    LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
+                    LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER);
                     itemHandleropt.ifPresent(itemHandler -> {
                         for (int i = 0; i < itemHandler.getSlots(); i++) {
                             ItemStack stack = itemHandler.getStackInSlot(i);
@@ -245,7 +246,7 @@ public class Utils {
                     }
                 }
                 else if(hasInventory(blockEntity)){
-                    LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
+                    LazyOptional<IItemHandler>  itemHandleropt = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER);
                     itemHandleropt.ifPresent(itemHandler -> {
                         for (int i = 0; i < itemHandler.getSlots(); i++) {
                             ItemStack stack = itemHandler.getStackInSlot(i);
@@ -441,7 +442,7 @@ public class Utils {
                 }
             }
             if(bestRecipeNeeded == -1 || finalNeeded < bestRecipeNeeded){
-                canCraft = finalCanCraft;
+                canCraft.value = finalCanCraft.value;
                 bestRecipeNeeded = finalNeeded;
                 bestRecipeResult = finalResult;
                 bestRecipeRest = persistRest;
@@ -455,6 +456,9 @@ public class Utils {
             }
         }
         if(first){
+            for(int i = 1; i < 10; i++){
+                currentController.setCraftingGridValue(i, null, 0);
+            }
             for (var e:usedGrid){
                 currentController.setCraftingGridValue(e.second.first, e.first, e.second.second);
             }
@@ -506,6 +510,7 @@ public class Utils {
     }
 
     public static ArrayList<CraftingRecipe> getRecipe(Item searcheditem) {
+        assert Minecraft.getInstance().level != null;
         RecipeManager recipeManager = Minecraft.getInstance().level.getRecipeManager();
         Collection<CraftingRecipe> craftingRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
         ArrayList<CraftingRecipe> re = new ArrayList<>();
@@ -522,9 +527,9 @@ public class Utils {
         CraftingRecipe someMatch = null;
         CraftingRecipe noMatch = null;
 
-        boolean someMatchbool = false;
-        boolean allMatchbool = true;
-        boolean found = false;
+        boolean someMatchbool;
+        boolean allMatchbool;
+        boolean found;
         for (CraftingRecipe r : recipe) {
 
             someMatchbool = false;
@@ -655,33 +660,6 @@ public class Utils {
     }
 
     public static void substractCraftableLists(ArrayList<CraftableInfo> list1, ArrayList<CraftableInfo> list2) {
-
-        for (int i = 0; i < list1.size(); i++) {
-            CraftableInfo ele1 = list1.get(i);
-            for (int j = 0; j < list2.size(); j++) {
-                CraftableInfo ele2 = list2.get(j);
-                if (ele1.item.equals(ele2.item)) {
-                    if (ele1.quant > ele2.quant) {
-                        ele1.quant -= ele2.quant;
-                        list2.remove(j);
-                        j--; // Adjust index to account for removed element
-                    } else if (ele1.quant == ele2.quant) {
-                        list1.remove(i);
-                        list2.remove(j);
-                        i--; // Adjust index to account for removed element
-                        j--; // Adjust index to account for removed element
-                    } else {
-                        ele2.quant -= ele1.quant;
-                        list1.remove(i);
-                        i--; // Adjust index to account for removed element
-                    }
-
-                }
-            }
-        }
-    }
-
-    public static void substractCraftableLists(CopyOnWriteArrayList<CraftableInfo> list1, CopyOnWriteArrayList<CraftableInfo> list2) {
 
         for (int i = 0; i < list1.size(); i++) {
             CraftableInfo ele1 = list1.get(i);

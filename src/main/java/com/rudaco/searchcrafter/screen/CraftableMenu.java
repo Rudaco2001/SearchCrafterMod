@@ -190,12 +190,19 @@ public class CraftableMenu {
     }
 
     public void deletePage(){
-        toUseObjectsPage.deletePage();
-        notEnoughPage.deletePage();
+        deleteUnderPages();
         for(Button b: buttons){
             screen.removeButton(b);
         }
         screen.removeInput(counter);
+    }
+    public void deleteUnderPages(){
+        if(toUseObjectsPage!= null){
+            toUseObjectsPage.deletePage();
+        }
+        if(notEnoughPage != null){
+            notEnoughPage.deletePage();
+        }
     }
 
     public void refresh(){

@@ -1,6 +1,5 @@
 package com.rudaco.searchcrafter.screen;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.rudaco.searchcrafter.block.custom.SearchCrafterTableBlock;
 import com.rudaco.searchcrafter.block.entity.SearchCrafterTable;
 import com.rudaco.searchcrafter.network.MySimpleChannel;
@@ -13,7 +12,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -24,22 +22,12 @@ import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 
-
-import java.io.Console;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.ConcurrentModificationException;
 import java.util.HashMap;
-
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -116,8 +104,7 @@ public class PageController{
     public void tick(){
         if(rigthSidePageHasToHide){
             if (rigthSidePage != null){
-                rigthSidePage.deletePage();
-                rigthSidePage = null;
+                rigthSidePage.deleteUnderPages();
             }
             rigthSidePageHasToHide = false;
         }
@@ -200,14 +187,12 @@ public class PageController{
 
 
     public void getAllCraftingRecipes() {
+        assert Minecraft.getInstance().level != null;
         RecipeManager recipeManager = Minecraft.getInstance().level.getRecipeManager();
         Collection<CraftingRecipe> craftingRecipes = recipeManager.getAllRecipesFor(RecipeType.CRAFTING);
 
         for (CraftingRecipe recipe : craftingRecipes) {
-            ResourceLocation recipeId = recipe.getId();
             Item item = recipe.getResultItem().getItem();
-            int id = Item.getId(item);
-
             boolean repeat = false;
             for(CraftableInfo c: craftableList){
                 if (c.item.equals(item)) {
@@ -216,8 +201,6 @@ public class PageController{
                 }
             }
             if(!repeat) this.craftableList.add(new CraftableInfo(item));
-
-
         }
     }
 
@@ -285,8 +268,9 @@ public class PageController{
     }
 
     public void getDimensionValues(){
+        assert Minecraft.getInstance().level != null;
         Block block = Minecraft.getInstance().level.getBlockState(screen.getEntityPos()).getBlock();
-        if(block instanceof SearchCrafterTableBlock sBlock){
+        if(block instanceof SearchCrafterTableBlock){
             BlockEntity ent = Minecraft.getInstance().level.getBlockEntity(screen.getEntityPos());
             if(ent instanceof SearchCrafterTable table) {
                 if (dimensionX != null) dimensionX.setValue("" + table.range.x);
@@ -297,6 +281,7 @@ public class PageController{
     }
 
     public void getRenderValue(){
+        assert Minecraft.getInstance().level != null;
         Block block = Minecraft.getInstance().level.getBlockState(screen.getEntityPos()).getBlock();
         if(block instanceof SearchCrafterTableBlock){
             BlockEntity ent = Minecraft.getInstance().level.getBlockEntity(screen.getEntityPos());
@@ -388,7 +373,7 @@ public class PageController{
             pButton.active = false;
         });
 
-        showButton = new Button(x - width*3/10-2, y + (height+offset)*9, width*1/5, height-5, Component.literal(">>"), pButton -> {
+        showButton = new Button(x - width*3/10-2, y + (height+offset)*9, width /5, height-5, Component.literal(">>"), pButton -> {
             if(dimensionsShown){
                 hideDimensions();
                 pButton.setMessage(Component.literal(">>"));
@@ -553,7 +538,11 @@ public class PageController{
             loadingWidget.setNumber(1);
             loadingWidget.initiateCraft();
             this.setCraftingNumber(1);
+            loadingWidget.setCurrentNumber(0);
             rigthSidePageHasToHide = true;
+        if (rigthSidePage != null) rigthSidePage.deletePage();
+        rigthSidePage = new CraftableMenu(this, screen, 100, 100, item, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        rigthSidePage.renderContent();
             Thread thread = new Thread(() -> {
                 try {
                     lock1.lock();
@@ -573,6 +562,7 @@ public class PageController{
                     rightPageHasToRender = true;
                     int state = neededNum.number == 0 ? 1:-1;
                     this.setCraftingGridValue(0, new ItemStack(item), state);
+                    setCraftingNumber(1);
                     System.out.println("Termino hilo nivel 1");
                     lock1.unlock();
                 }
@@ -596,6 +586,7 @@ public class PageController{
         this.setCraftingNumber(1);
         loadingWidget.setNumber(count);
         loadingWidget.initiateCraft();
+        loadingWidget.setCurrentNumber(0);
         rigthSidePageHasToHide = true;
         showGrid();
             Thread thread = new Thread(() -> {
@@ -639,6 +630,8 @@ public class PageController{
         }
         this.setCraftingGridValue(0, new ItemStack(item), 0);
         this.setCraftingNumber(1);
+        loadingWidget.setCurrentNumber(0);
+        loadingWidget.setNumber(1);
         rigthSidePageHasToHide = true;
         showGrid();
         Thread thread = new Thread(() -> {
@@ -667,7 +660,7 @@ public class PageController{
             if(count <= 1){
                 prevResult = result;
                 prevRest = rest;
-                this.setCraftingGridValue(1, new ItemStack(item), -1);
+                this.setCraftingGridValue(0, new ItemStack(item), -1);
                 loadingWidget.setNumber(count);
                 this.setCraftingNumber(count);
             }

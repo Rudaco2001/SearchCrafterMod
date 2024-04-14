@@ -36,8 +36,8 @@ public class RendererBlock implements BlockEntityRenderer<SearchCrafterTable> {
 
     @Override
     public void render(SearchCrafterTable pBlockEntity, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBufferSource, int pPackedLight, int pPackedOverlay) {
+        if(!pBlockEntity.renderActive) return;
         pPoseStack.pushPose();
-
         int rangeX = pBlockEntity.range.x;
         int rangeY = pBlockEntity.range.y;
         int rangeZ = pBlockEntity.range.z;
