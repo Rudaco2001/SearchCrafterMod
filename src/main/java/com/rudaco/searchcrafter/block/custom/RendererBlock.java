@@ -1,4 +1,5 @@
 package com.rudaco.searchcrafter.block.custom;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.rudaco.searchcrafter.block.entity.SearchCrafterTable;
 import com.rudaco.searchcrafter.staticInfo.Utils;
@@ -9,7 +10,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 @OnlyIn(Dist.CLIENT)
 public class RendererBlock implements BlockEntityRenderer<SearchCrafterTable> {

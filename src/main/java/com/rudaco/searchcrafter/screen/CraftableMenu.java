@@ -5,10 +5,8 @@ import com.rudaco.searchcrafter.staticInfo.Utils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
-
 
 import java.util.ArrayList;
 
