@@ -14,6 +14,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +36,7 @@ public class SearchCrafterTableBlock extends BaseEntityBlock {
         this.pos = pPos;
         return new SearchCrafterTable(pPos,pState);
     }
+
 
 
     @Override

@@ -23,7 +23,7 @@ public class MiniPage extends MenuChestPage{
 
     public void renderButtons(){
         this.x = (screen.width - pageSizeX) / 2 + 40;
-        this.y = (screen.height - pageSizeY) / 2 - 30;
+        this.y = (screen.height - pageSizeY) / 2 - 15;
         int y_padding = 1;
         int x_padding = 1;
         int size = (pageSizeY-10-y_padding*(objectCont+1))/objectCont;
@@ -31,9 +31,7 @@ public class MiniPage extends MenuChestPage{
         int z = 0;
         for (CraftableInfo info: craftableList){
             String itemName = Language.getInstance().getOrDefault(info.item.getDescriptionId());
-            drawItemButton(x+5 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, itemName, ()->{
-                controller.selectCraft(info.item);
-            }, new ItemStack(info.item), info.quant);
+            drawItemButton(x+7 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, itemName, ()->{}, new ItemStack(info.item), info.quant);
             z++;
             if(z > x_objectCont - 1){
                 z = 0;
@@ -63,11 +61,13 @@ public class MiniPage extends MenuChestPage{
             }
 
             int finalJ = nextPage;
-            drawPageButton(x + j * x_size, y + pageSizeY, x_size, 7, text, () -> {
+            drawPageButton(x + j * x_size, y + pageSizeY - 3, x_size, 7, text, () -> {
                 this.changePage(finalJ);
             }, active);
         }
     }
+
+
 
     protected void drawPageButton(int x, int y, int width, int height, String text, FunctionalInterface action, boolean active){
         Button button = new TextButton(x, y, width, height, Component.literal(text), b -> {

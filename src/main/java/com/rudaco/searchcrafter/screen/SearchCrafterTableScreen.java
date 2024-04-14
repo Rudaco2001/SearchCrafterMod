@@ -5,9 +5,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.rudaco.searchcrafter.SearchCrafter;
 import com.rudaco.searchcrafter.staticInfo.StaticInfo;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Widget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
@@ -65,6 +67,7 @@ public class SearchCrafterTableScreen extends AbstractContainerScreen<SearchCraf
 
     @Override
     public void render(PoseStack pPoseStack, int pMouseX, int pMouseY, float pPartialTick) {
+        pageController.preRender();
         super.render(pPoseStack, pMouseX, pMouseY, pPartialTick);
         for(Widget widget : this.renderables) {
             if(widget instanceof CustomImageButton button ){
@@ -77,7 +80,10 @@ public class SearchCrafterTableScreen extends AbstractContainerScreen<SearchCraf
 
     public void addButton(Button button){
         this.addRenderableWidget(button);
+    }
 
+    public void addWidget(AbstractWidget widget){
+        this.addRenderableWidget(widget);
     }
 
     public void addInput(EditBox input){
@@ -87,6 +93,10 @@ public class SearchCrafterTableScreen extends AbstractContainerScreen<SearchCraf
 
     public void removeButton(Button button){
         this.removeWidget(button);
+    }
+
+    public void removeRenderableWidget(GuiEventListener widget){
+        this.removeWidget(widget);
     }
 
     public void removeInput(EditBox input){

@@ -3,6 +3,7 @@ package com.rudaco.searchcrafter.staticInfo;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.rudaco.searchcrafter.screen.CraftableInfo;
+import com.rudaco.searchcrafter.screen.PageController;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
@@ -10,10 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
@@ -291,16 +289,25 @@ public class Utils {
     }
 
 
-    public static ArrayList<CraftableInfo> getCraftableInfo(boolean first, Item searcheditem, ArrayList<CraftableInfo> modificableInfo, ArrayList<Item> alreadyChecked, ArrayList<CraftableInfo> rest, IntHolder neededCount, Map<Pair<Item,Integer>, Pair<Item, Boolean>> memoizationMap) {
+    public static ArrayList<CraftableInfo> getCraftableInfo(boolean first, Item searcheditem, ArrayList<CraftableInfo> modificableInfo, ArrayList<Item> alreadyChecked, ArrayList<Pair<CraftableInfo, Boolean>> rest, IntHolder neededCount, Map<Pair<Item,Integer>, Pair<Item, Boolean>> memoizationMap, PageController currentController, int craftIndex, Holder<Boolean> canCraft) {
         ArrayList<CraftableInfo> resultlist = new ArrayList<>();
 
-        for (CraftableInfo cr : rest) {
+        if(Thread.currentThread().isInterrupted()){
+            return null;
+        }
+
+        for (var r : rest) {
+            CraftableInfo cr = r.first;
             if (cr.item.equals(searcheditem) && cr.quant > 0) {
                 cr.quant--;
-                if(cr.quant == 0) rest.remove(cr);
+                if(cr.quant == 0) rest.remove(r);
+                canCraft.value = r.second;
                 return resultlist;
             }
         }
+
+        ArrayList<Pair<ItemStack, Pair<Integer, Integer>>> usedGrid = new ArrayList<>();
+        ArrayList<Pair<ItemStack, Pair<Integer, Integer>>> actualGrid = new ArrayList<>();
 
         if(!first){
             if(isInInventory(searcheditem, modificableInfo)){
@@ -309,9 +316,11 @@ public class Utils {
             }
         }
 
+
         if (alreadyChecked.contains(searcheditem)) {
             resultlist.add(new CraftableInfo(searcheditem, 1));
             neededCount.number++;
+            canCraft.value = false;
             return resultlist;
         }
 
@@ -320,24 +329,43 @@ public class Utils {
         if (recipes.isEmpty()) {
             resultlist.add(new CraftableInfo(searcheditem, 1));
             neededCount.number++;
+            canCraft.value = false;
             return resultlist;
         }
 
+
+
         ArrayList<CraftableInfo> bestRecipeResult = new ArrayList<>();
-        ArrayList<CraftableInfo> bestRecipeRest = new ArrayList<>();
+        ArrayList<Pair<CraftableInfo,Boolean>> bestRecipeRest = new ArrayList<>();
         ArrayList<CraftableInfo> bestRecipeMod = new ArrayList<>();
         int bestRecipeNeeded = -1;
         CraftingRecipe bestRecipe = null;
         for(CraftingRecipe recipe: recipes){
             ArrayList<CraftableInfo> finalResult = new ArrayList<>();
-            ArrayList<CraftableInfo> persistRest = deepCopyofCraftableInfo(rest);
+            ArrayList<Pair<CraftableInfo, Boolean>> persistRest = deepCopyofRest(rest);
             int finalNeeded = 0;
+            Holder<Boolean> finalCanCraft = new Holder<>(true);
             ArrayList<CraftableInfo> persistMod = deepCopyofCraftableInfo(modificableInfo);
+            if(first){
+                craftIndex = 1;
+            }
+            if(first){
+                for(int r = 1; r < 10; r++){
+                    currentController.setCraftingGridValue(r, null, 0);
+                }
+            }
             for (Ingredient ing: recipe.getIngredients()){
-                if(ing.getItems().length == 0) continue;
+                if(ing.getItems().length == 0){
+                    if(first){
+                        currentController.setCraftingGridValue(craftIndex, null, 0);
+                        ++craftIndex;
+                    }
+                    continue;
+                }
                 int bestNeeded = -1;
+                Holder<Boolean> bestCanCraft = new Holder<>(true);
                 ArrayList<CraftableInfo> bestResult = new ArrayList<>();
-                ArrayList<CraftableInfo> bestRest = new ArrayList<>();
+                ArrayList<Pair<CraftableInfo, Boolean>> bestRest = new ArrayList<>();
                 ArrayList<CraftableInfo> bestMod = new ArrayList<>();
                 boolean found = false;
                 Item bestVariant = null;
@@ -345,13 +373,20 @@ public class Utils {
                     found = true;
                     ArrayList<CraftableInfo> copyMod = deepCopyofCraftableInfo(persistMod);
                     ArrayList<CraftableInfo> result;
-                    ArrayList<CraftableInfo> copyRest = deepCopyofCraftableInfo(persistRest);
+                    ArrayList<Pair<CraftableInfo, Boolean>> copyRest = deepCopyofRest(persistRest);
                     IntHolder holder = new IntHolder(0);
-                    result = getCraftableInfo(false, memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).first, copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap);
+                    currentController.setCraftingGridValue(craftIndex, new ItemStack(ing.getItems()[0].getItem()), 0);
+                    bestVariant = memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).first;
+                    Holder<Boolean> canCraftMaterial = new Holder<>(true);
+                    result = getCraftableInfo(false, bestVariant, copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap, currentController, craftIndex, canCraftMaterial);
+                    if(result == null){
+                        return null;
+                    }
                     bestNeeded = holder.number;
                     bestResult = result;
                     bestMod = copyMod;
                     bestRest = copyRest;
+                    bestCanCraft = canCraftMaterial;
                     if(memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).second && bestNeeded != 0){
                         bestNeeded = -1;
                         found = false;
@@ -361,15 +396,21 @@ public class Utils {
                     for (int i = 0; i < ing.getItems().length; i++) {
                         ArrayList<CraftableInfo> copyMod = deepCopyofCraftableInfo(persistMod);
                         ArrayList<CraftableInfo> result;
-                        ArrayList<CraftableInfo> copyRest = deepCopyofCraftableInfo(persistRest);
+                        ArrayList<Pair<CraftableInfo,Boolean>> copyRest = deepCopyofRest(persistRest);
                         IntHolder holder = new IntHolder(0);
-                        result = getCraftableInfo(false, ing.getItems()[i].getItem(), copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap);
+                        Holder<Boolean> canCraftMaterial = new Holder<>(true);
+                        currentController.setCraftingGridValue(craftIndex, new ItemStack(ing.getItems()[i].getItem()), 0);
+                        result = getCraftableInfo(false, ing.getItems()[i].getItem(), copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap, currentController, craftIndex, canCraftMaterial);
+                        if(result == null){
+                            return null;
+                        }
                         if(bestNeeded == -1 || holder.number < bestNeeded){
                             bestNeeded = holder.number;
                             bestResult = result;
                             bestMod = copyMod;
                             bestRest = copyRest;
                             bestVariant = ing.getItems()[i].getItem();
+                            bestCanCraft = canCraftMaterial;
                             if(bestNeeded == 0) break;
                         }
                     }
@@ -378,6 +419,7 @@ public class Utils {
                 combineLists(bestResult, finalResult);
                 persistRest = bestRest;
                 finalNeeded += bestNeeded;
+                finalCanCraft.value = finalCanCraft.value && bestCanCraft.value;
                 if(!found && ing.getItems().length > 1){
                     if(bestNeeded == getCraftableListCount(bestResult) && bestNeeded != 0){
                         memoizationMap.put(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length), new Pair<>(bestVariant, false));
@@ -386,19 +428,40 @@ public class Utils {
                         memoizationMap.put(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length), new Pair<>(bestVariant, true));
                     }
                 }
+                if(first){
+                    int state = bestNeeded == 0 && bestCanCraft.value ? 1:-1;
+                    currentController.setCraftingGridValue(craftIndex, new ItemStack(bestVariant), state);
+                    actualGrid.add(new Pair<>(new ItemStack(bestVariant), new Pair<>(craftIndex, state)));
+                    craftIndex++;
+                    if(recipe instanceof ShapedRecipe shapedRecipe){
+                        while((craftIndex-1) % 3 > shapedRecipe.getWidth()-1){
+                            craftIndex++;
+                        }
+                    }
+                }
             }
             if(bestRecipeNeeded == -1 || finalNeeded < bestRecipeNeeded){
+                canCraft = finalCanCraft;
                 bestRecipeNeeded = finalNeeded;
                 bestRecipeResult = finalResult;
                 bestRecipeRest = persistRest;
                 bestRecipeMod = persistMod;
                 bestRecipe = recipe;
+                if(first){
+                    usedGrid = new ArrayList<>(actualGrid);
+                    actualGrid.clear();
+                }
                 if(bestRecipeNeeded == 0) break;
+            }
+        }
+        if(first){
+            for (var e:usedGrid){
+                currentController.setCraftingGridValue(e.second.first, e.first, e.second.second);
             }
         }
         int count = bestRecipe.getResultItem().getCount();
         if (count > 1) {
-            bestRecipeRest.add(new CraftableInfo(searcheditem, count - 1));
+            bestRecipeRest.add(new Pair<>(new CraftableInfo(searcheditem, count - 1), bestRecipeNeeded==0 && canCraft.value));
         }
         neededCount.number = bestRecipeNeeded;
         modificableInfo.clear();
@@ -408,123 +471,6 @@ public class Utils {
         return bestRecipeResult;
     }
 
-
-    public static ArrayList<CraftableInfo> getCraftableInfo(boolean first, Item searcheditem, ArrayList<CraftableInfo> modificableInfo, ArrayList<Item> alreadyChecked, CopyOnWriteArrayList<CraftableInfo> rest, IntHolder neededCount, Map<Pair<Item,Integer>, Pair<Item, Boolean>> memoizationMap) {
-        ArrayList<CraftableInfo> resultlist = new ArrayList<>();
-
-        for (CraftableInfo cr : rest) {
-            if (cr.item.equals(searcheditem) && cr.quant > 0) {
-                cr.quant--;
-                if(cr.quant == 0) rest.remove(cr);
-                return resultlist;
-            }
-        }
-
-        if(!first){
-            if(isInInventory(searcheditem, modificableInfo)){
-                resultlist.add(new CraftableInfo(searcheditem, 1));
-                return resultlist;
-            }
-        }
-
-        if (alreadyChecked.contains(searcheditem)) {
-            resultlist.add(new CraftableInfo(searcheditem, 1));
-            neededCount.number++;
-            return resultlist;
-        }
-
-        alreadyChecked.add(searcheditem);
-        ArrayList<CraftingRecipe> recipes = getRecipe(searcheditem);
-        if (recipes.isEmpty()) {
-            resultlist.add(new CraftableInfo(searcheditem, 1));
-            neededCount.number++;
-            return resultlist;
-        }
-
-        ArrayList<CraftableInfo> bestRecipeResult = new ArrayList<>();
-        ArrayList<CraftableInfo> bestRecipeRest = new ArrayList<>();
-        ArrayList<CraftableInfo> bestRecipeMod = new ArrayList<>();
-        int bestRecipeNeeded = -1;
-        CraftingRecipe bestRecipe = null;
-        for(CraftingRecipe recipe: recipes){
-            ArrayList<CraftableInfo> finalResult = new ArrayList<>();
-            ArrayList<CraftableInfo> persistRest = deepCopyofCraftableInfo(new ArrayList<>(rest));
-            int finalNeeded = 0;
-            ArrayList<CraftableInfo> persistMod = deepCopyofCraftableInfo(modificableInfo);
-            for (Ingredient ing: recipe.getIngredients()){
-                if(ing.getItems().length == 0) continue;
-                int bestNeeded = -1;
-                ArrayList<CraftableInfo> bestResult = new ArrayList<>();
-                ArrayList<CraftableInfo> bestRest = new ArrayList<>();
-                ArrayList<CraftableInfo> bestMod = new ArrayList<>();
-                boolean found = false;
-                Item bestVariant = null;
-                if(memoizationMap.containsKey(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length))){
-                    found = true;
-                    ArrayList<CraftableInfo> copyMod = deepCopyofCraftableInfo(persistMod);
-                    ArrayList<CraftableInfo> result;
-                    ArrayList<CraftableInfo> copyRest = deepCopyofCraftableInfo(persistRest);
-                    IntHolder holder = new IntHolder(0);
-                    result = getCraftableInfo(false, memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).first, copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap);
-                    bestNeeded = holder.number;
-                    bestResult = result;
-                    bestMod = copyMod;
-                    bestRest = copyRest;
-                    if(memoizationMap.get(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length)).second && bestNeeded != 0){
-                        bestNeeded = -1;
-                        found = false;
-                    }
-                }
-                if(!found){
-                    for (int i = 0; i < ing.getItems().length; i++) {
-                        ArrayList<CraftableInfo> copyMod = deepCopyofCraftableInfo(persistMod);
-                        ArrayList<CraftableInfo> result;
-                        ArrayList<CraftableInfo> copyRest = deepCopyofCraftableInfo(persistRest);
-                        IntHolder holder = new IntHolder(0);
-                        result = getCraftableInfo(false, ing.getItems()[i].getItem(), copyMod, new ArrayList<>(alreadyChecked), copyRest, holder, memoizationMap);
-                        if(bestNeeded == -1 || holder.number < bestNeeded){
-                            bestNeeded = holder.number;
-                            bestResult = result;
-                            bestMod = copyMod;
-                            bestRest = copyRest;
-                            bestVariant = ing.getItems()[i].getItem();
-                            if(bestNeeded == 0) break;
-                        }
-                    }
-                }
-                persistMod = bestMod;
-                combineLists(bestResult, finalResult);
-                persistRest = bestRest;
-                finalNeeded += bestNeeded;
-                if(!found && ing.getItems().length > 1){
-                    if(bestNeeded == getCraftableListCount(bestResult) && bestNeeded != 0){
-                        memoizationMap.put(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length), new Pair<>(bestVariant, false));
-                    }
-                    else {
-                        memoizationMap.put(new Pair<>(ing.getItems()[0].getItem(), ing.getItems().length), new Pair<>(bestVariant, true));
-                    }
-                }
-            }
-            if(bestRecipeNeeded == -1 || finalNeeded < bestRecipeNeeded){
-                bestRecipeNeeded = finalNeeded;
-                bestRecipeResult = finalResult;
-                bestRecipeRest = persistRest;
-                bestRecipeMod = persistMod;
-                bestRecipe = recipe;
-                if(bestRecipeNeeded == 0) break;
-            }
-        }
-        int count = bestRecipe.getResultItem().getCount();
-        if (count > 1) {
-            bestRecipeRest.add(new CraftableInfo(searcheditem, count - 1));
-        }
-        neededCount.number = bestRecipeNeeded;
-        modificableInfo.clear();
-        modificableInfo.addAll(bestRecipeMod);
-        rest.clear();
-        rest.addAll(bestRecipeRest);
-        return bestRecipeResult;
-    }
 
 
     public static void addToCraftableList(ArrayList<CraftableInfo> list, CraftableInfo element) {
@@ -541,6 +487,9 @@ public class Utils {
 
     public static void combineLists(ArrayList<CraftableInfo> list1, ArrayList<CraftableInfo> list2) {
         boolean found;
+        if(list1 == null || list2 == null){
+            return;
+        }
         for (CraftableInfo ele1 : list1) {
             found = false;
             for (CraftableInfo ele2 : list2) {
@@ -602,20 +551,27 @@ public class Utils {
         return someMatch;
     }
 
-    public static ArrayList<Pair<Item, Boolean>> getRecipeItems(CraftingRecipe recipe, ArrayList<CraftableInfo> modificableInfo) {
+    public static ArrayList<Pair<Item, Pair<Boolean, Integer>>> getRecipeItems(boolean first, CraftingRecipe recipe, ArrayList<CraftableInfo> modificableInfo, PageController currentController, int gridIndex) {
         boolean found;
-        ArrayList<Pair<Item, Boolean>> items = new ArrayList<>();
-        found = false;
+        ArrayList<Pair<Item,Pair<Boolean, Integer>>> items = new ArrayList<>();
         for (Ingredient ing : recipe.getIngredients()) {
             found = false;
             for (int i = 0; i < ing.getItems().length; i++) {
+                if(first){
+                    currentController.setCraftingGridValue(gridIndex, ing.getItems()[i], 0);
+                }
                 if (isInInventory(ing.getItems()[i].getItem(), modificableInfo)) {
                     found = true;
-                    items.add(new Pair<>(ing.getItems()[i].getItem(), true));
+                    items.add(new Pair<>(ing.getItems()[i].getItem(),new Pair<>(true, gridIndex)));
                     break;
                 }
             }
-            if (!found && ing.getItems().length > 0) items.add(new Pair<>(ing.getItems()[0].getItem(), false));
+            if (!found && ing.getItems().length > 0) items.add(new Pair<>(ing.getItems()[0].getItem(), new Pair<>(false, gridIndex)));
+            if(first){
+                if(ing.getItems().length == 0) currentController.setCraftingGridValue(gridIndex, null, 0);
+                gridIndex++;
+            }
+
         }
         return items;
     }
@@ -662,6 +618,40 @@ public class Utils {
             result.add(new CraftableInfo(info));
         }
         return result;
+    }
+
+    public static ArrayList<Pair<CraftableInfo, Boolean>> deepCopyofRest(ArrayList<Pair<CraftableInfo, Boolean>> list) {
+        ArrayList<Pair<CraftableInfo, Boolean>> result = new ArrayList<>();
+        for (var info : list) {
+            result.add(new Pair<>(new CraftableInfo(info.first), info.second));
+        }
+        return result;
+    }
+
+
+    public static void substractRestWithResult(ArrayList<Pair<CraftableInfo, Boolean>> rest, ArrayList<CraftableInfo> result) {
+        for (int i = 0; i < rest.size(); i++) {
+            CraftableInfo ele1 = rest.get(i).first;
+            for (int j = 0; j < result.size(); j++) {
+                CraftableInfo ele2 = result.get(j);
+                if (ele1.item.equals(ele2.item)) {
+                    if (ele1.quant > ele2.quant) {
+                        ele1.quant -= ele2.quant;
+                        result.remove(j);
+                        j--; // Adjust index to account for removed element
+                    } else if (ele1.quant == ele2.quant) {
+                        rest.remove(i);
+                        result.remove(j);
+                        i--; // Adjust index to account for removed element
+                        j--; // Adjust index to account for removed element
+                    } else {
+                        ele2.quant -= ele1.quant;
+                        rest.remove(i);
+                        i--; // Adjust index to account for removed element
+                    }
+                }
+            }
+        }
     }
 
     public static void substractCraftableLists(ArrayList<CraftableInfo> list1, ArrayList<CraftableInfo> list2) {
@@ -736,8 +726,12 @@ public class Utils {
         }
     }
 
-    public static ArrayList<CraftableInfo> getCraftableInfo_old(Item searcheditem, ArrayList<CraftableInfo> modificableInfo, ArrayList<Item> alreadyChecked, ArrayList<CraftableInfo> rest) {
+    public static ArrayList<CraftableInfo> getCraftableInfo_old(boolean first, Item searcheditem, ArrayList<CraftableInfo> modificableInfo, ArrayList<Item> alreadyChecked, ArrayList<CraftableInfo> rest, PageController currentController, int craftIndex) {
         ArrayList<CraftableInfo> resultlist = new ArrayList<>();
+
+        if(Thread.currentThread().isInterrupted()){
+            return null;
+        }
 
         for (CraftableInfo cr : rest) {
             if (cr.item.equals(searcheditem) && cr.quant > 0) {
@@ -763,11 +757,24 @@ public class Utils {
         if (count > 1) {
             rest.add(new CraftableInfo(searcheditem, count - 1));
         }
-        ArrayList<Pair<Item, Boolean>> intermediateList = getRecipeItems(recipe, modificableInfo);
-        for (Pair<Item, Boolean> i : intermediateList) {
-            if (i.second) addToCraftableList(resultlist, new CraftableInfo(i.first, 1));
-            else
-                combineLists(getCraftableInfo_old(i.first, modificableInfo, new ArrayList<>(alreadyChecked), rest), resultlist);
+        if(first){
+            for(int r = recipe.getIngredients().size() + 1; r < 10; r++){
+                currentController.setCraftingGridValue(r, null, 0);
+            }
+        }
+        ArrayList<Pair<Item,Pair<Boolean, Integer>>> intermediateList = getRecipeItems(first, recipe, modificableInfo, currentController, craftIndex);
+        for (Pair<Item,Pair<Boolean, Integer>> i : intermediateList) {
+            if (i.second.first) addToCraftableList(resultlist, new CraftableInfo(i.first, 1));
+            else{
+                ArrayList<CraftableInfo> result = getCraftableInfo_old(false, i.first, modificableInfo, new ArrayList<>(alreadyChecked), rest, currentController, i.second.second);
+                if(result == null){
+                    return null;
+                }
+                if(first){
+                    currentController.setCraftingGridValue(i.second.second, new ItemStack(i.first), 0);
+                }
+                combineLists(result, resultlist);
+            }
         }
         return resultlist;
     }

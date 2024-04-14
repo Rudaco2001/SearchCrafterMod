@@ -1,5 +1,6 @@
 package com.rudaco.searchcrafter.screen;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.rudaco.searchcrafter.staticInfo.Utils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
@@ -36,6 +37,7 @@ public class CraftableMenu {
     ArrayList<Button> buttons = new ArrayList<>();
     String text;
 
+
     int count;
 
 
@@ -70,13 +72,13 @@ public class CraftableMenu {
 
 
     public void renderContent(){
+
         this.x = (screen.width - pageSizeX) / 2 + 60;
         this.y = (screen.height - pageSizeY) / 2 - 44;
 
-        buttons.add(new ButtonForText(x,y,width,10, Component.literal(this.text)));
+        //buttons.add(new ButtonForText(x,y,width,10, Component.literal(this.text)));
         y += 15;
-        String itemName = Language.getInstance().getOrDefault(item.getDescriptionId());
-        buttons.add(new ButtonForText(x,y,width,10, Component.literal(itemName + " x" + count)));
+        //buttons.add(new ButtonForText(x,y,width,10, Component.literal(itemName + " x" + count)));
         y += 15;
         renderUnderPart();
         addCounter();
@@ -86,16 +88,20 @@ public class CraftableMenu {
 
     }
 
+
+
     public void renderUnderPart(){
-        buttons.add(new ButtonForText(x,y,width/2 - 10,10, Component.literal("Se va a usar:")));
+        x += 3;
+        y += 22;
+        buttons.add(new ButtonForText(x,y,width/2 - 10,10, Component.literal("Items to use:")));
         x += width/2 + 5;
-        buttons.add(new ButtonForText(x,y,width/2 - 10,10, Component.literal("Se necesita:")));
-        y += 15;
+        buttons.add(new ButtonForText(x,y,width/2 - 10,10, Component.literal("Missing items:")));
+        y += 25;
         x -= width/2;
 
         changePagetoUse(1);
         changePageNeeded(1);
-        Button craftButton = new Button(this.x + 68, this.y + 65, 40, 20, Component.literal("Craft"), pButton -> {
+        Button craftButton = new Button(this.x + 65, this.y + 45, 40, 20, Component.literal("Craft"), pButton -> {
             if(!notEnoughItems.isEmpty()) return;
             this.controller.craft(new CraftableInfo(item, count), this.toUseItems, this.rest);
         });
@@ -122,12 +128,26 @@ public class CraftableMenu {
             onAllPressed();
         });
         buttons.add(allButton);
-        counter = new EditBox(Minecraft.getInstance().font, localx + 5, localy , 20, 10, Component.literal("SEARCH")){
+        counter = new EditBox(Minecraft.getInstance().font, localx + 5, localy - 2 , 33, 10, Component.literal("")){
             @Override
             public boolean charTyped(char pCodePoint, int pModifiers) {
                 boolean result = super.charTyped(pCodePoint, pModifiers);
                 okButton.active = Utils.isNumeric(this.getValue());
                 return result;
+            }
+            @Override
+            public void render(PoseStack pPoseStack, int pMouseX, int pMouseY, float pPartialTick) {
+                pPoseStack.pushPose();
+                float scale = 0.65f;
+                pPoseStack.scale(scale, scale, 1);
+                int prev_y = y;
+                int prev_x = x;
+                x = (int) (x/scale);
+                y = (int) (y/scale);
+                super.render(pPoseStack, pMouseX, pMouseY, pPartialTick);
+                pPoseStack.popPose();
+                x = prev_x;
+                y = prev_y;
             }
         };
         counter.setValue(String.valueOf(count));

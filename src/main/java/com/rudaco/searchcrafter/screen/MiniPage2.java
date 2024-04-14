@@ -25,7 +25,7 @@ public class MiniPage2 extends MenuChestPage{
 
 
         this.x = ((screen.width - pageSizeX) / 2) + (pageSizeX + 40);
-        this.y = (screen.height - pageSizeY) / 2 - 30;
+        this.y = (screen.height - pageSizeY) / 2 - 15;
         int y_padding = 1;
         int x_padding = 1;
         int size = (pageSizeY-10-y_padding*(objectCont+1))/objectCont;
@@ -33,9 +33,7 @@ public class MiniPage2 extends MenuChestPage{
         int z = 0;
         for (CraftableInfo info: craftableList){
             String itemName = Language.getInstance().getOrDefault(info.item.getDescriptionId());
-            drawItemButton(x+5 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, itemName, ()->{
-                controller.selectCraft(info.item);
-            }, new ItemStack(info.item), info.quant);
+            drawItemButton(x+7 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, itemName, ()->{}, new ItemStack(info.item), info.quant);
             z++;
             if(z > x_objectCont - 1){
                 z = 0;
@@ -64,7 +62,7 @@ public class MiniPage2 extends MenuChestPage{
             }
 
             int finalJ = nextPage;
-            drawPageButton(x + j * x_size, y + pageSizeY, x_size, 7, text, () -> {
+            drawPageButton(x + j * x_size, y + pageSizeY-3, x_size, 7, text, () -> {
                 this.changePage(finalJ);
             }, active);
         }

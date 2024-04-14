@@ -11,11 +11,14 @@ import com.rudaco.searchcrafter.network.packet.PacketC2SVisible;
 import com.rudaco.searchcrafter.staticInfo.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
@@ -69,6 +72,21 @@ public class PageController{
     CraftableMenu rigthSidePage = null;
     CraftableMenu rightBufferPage = null;
     final ReentrantLock lock1 = new ReentrantLock();
+
+    final ReentrantLock craftGridLock = new ReentrantLock();
+
+
+    ArrayList<CustomImageButton> craftGrid = new ArrayList<>();
+    LoadingWidget loadingWidget;
+    boolean craftGridVisibility = true;
+    ArrayList<Pair<ItemStack,Pair<Integer, Integer>>> craftGridBuffer = new ArrayList<>();
+    AtomicInteger craftNumberBuffer = new AtomicInteger(-1);
+
+    Thread currentThread = null;
+    private boolean rigthSidePageHasToHide;
+    private boolean isUsingAlternativeAlgorithm = false;
+    private Checkbox algorithmCheckbox;
+
     public PageController(SearchCrafterTableScreen screen){
         this.screen = screen;
         this.getAllCraftingRecipes();
@@ -96,15 +114,47 @@ public class PageController{
     }
 
     public void tick(){
+        if(rigthSidePageHasToHide){
+            if (rigthSidePage != null){
+                rigthSidePage.deletePage();
+                rigthSidePage = null;
+            }
+            rigthSidePageHasToHide = false;
+        }
         if(rightPageHasToRender){
             if (rigthSidePage != null) rigthSidePage.deletePage();
             rigthSidePage = rightBufferPage;
             rigthSidePage.renderContent();
             rightPageHasToRender = false;
+            loadingWidget.succedCraft();
         }
     }
 
+    public void setCraftingGridValue(int index, ItemStack item, int state){
+        craftGridLock.lock();
+        craftGridBuffer.add(new Pair<>(item, new Pair<>(index,state)));
+        craftGridLock.unlock();
+    }
 
+    public void setCraftingNumber(int number){
+        craftNumberBuffer.set(number);
+        loadingWidget.setCurrentNumber(number);
+    }
+    public void preRender(){
+        craftGridLock.lock();
+        while(!craftGridBuffer.isEmpty()){
+            var b = craftGridBuffer.get(0);
+            craftGrid.get(b.second.first).setItem(b.first);
+            craftGrid.get(b.second.first).setState(b.second.second);
+            craftGridBuffer.remove(0);
+        }
+        craftGridLock.unlock();
+        int newNumber = craftNumberBuffer.get();
+        if(newNumber != -1){
+            craftGrid.get(0).setNumber(newNumber);
+            craftNumberBuffer.set(-1);
+        }
+    }
 
     public void createObjectPage(int page){
         int objectPerPage = objectRows * objectColumns;
@@ -142,6 +192,7 @@ public class PageController{
         this.getDimensionValues();
         this.getRenderValue();
         this.hideDimensions();
+        this.createCraftGrid();
     }
     public void renderObjectPage(){
         currentObjectPage.renderButtons();
@@ -179,11 +230,20 @@ public class PageController{
         filteredCraftableList = craftableList.stream().filter(e->{
             String itemName = Language.getInstance().getOrDefault(e.item.getDescriptionId());
             return itemName.toLowerCase().contains(searchBar.getValue().toLowerCase());
+        }).sorted((a,b)->{
+            int itemName1 = Language.getInstance().getOrDefault(a.item.getDescriptionId()).length();
+            int itemName2 = Language.getInstance().getOrDefault(b.item.getDescriptionId()).length();
+            return itemName1 - itemName2;
         }).collect(Collectors.toCollection(ArrayList::new));
         filteredChestList = chestList.stream().filter(e->{
             String itemName = Language.getInstance().getOrDefault(e.item.getDescriptionId());
             return itemName.toLowerCase().contains(searchBar.getValue().toLowerCase());
+        }).sorted((a,b)->{
+            int itemName1 = Language.getInstance().getOrDefault(a.item.getDescriptionId()).length();
+            int itemName2 = Language.getInstance().getOrDefault(b.item.getDescriptionId()).length();
+            return itemName1 - itemName2;
         }).collect(Collectors.toCollection(ArrayList::new));
+
         this.changePage(1);
     }
 
@@ -304,6 +364,19 @@ public class PageController{
                 return result;
             }
         };
+
+
+        dimensionTextButton.add(new ButtonForText(x ,y + (height+offset)*5, width+10, height, Component.literal("Use alternative algorithm")));
+        dimensionTextButton.add(new ButtonForText(x ,y + (int)((height+offset)*5.3), width+10, height, Component.literal("(usually not recomended)")));
+
+        algorithmCheckbox = new Checkbox(x ,y + (height+offset)*6, width, height, Component.literal(""), false){
+            @Override
+            public void onClick(double pMouseX, double pMouseY) {
+                super.onClick(pMouseX, pMouseY);
+                isUsingAlternativeAlgorithm = this.selected();
+            }
+        };
+
         dimensionTextButton.add(new ButtonForText(x ,y + (height+offset)*8, width, height, Component.literal("Render limits")));
 
         okrenderButton = new Button(x, y + (height+offset)*9, width*3/4 - 2, height, Component.literal("Enable"), pButton -> {
@@ -332,6 +405,7 @@ public class PageController{
         screen.addButton(okButton);
         screen.addButton(okrenderButton);
         screen.addButton(norenderButton);
+        screen.addWidget(algorithmCheckbox);
         for (Button b: dimensionTextButton) {
             screen.addButton(b);
         }
@@ -345,6 +419,7 @@ public class PageController{
         screen.addButton(okButton);
         screen.addButton(okrenderButton);
         screen.addButton(norenderButton);
+        screen.addWidget(algorithmCheckbox);
         for (Button b: dimensionTextButton) {
             screen.addButton(b);
         }
@@ -358,6 +433,7 @@ public class PageController{
         screen.removeButton(okButton);
         screen.removeButton(okrenderButton);
         screen.removeButton(norenderButton);
+        screen.removeRenderableWidget(algorithmCheckbox);
         for (Button b: dimensionTextButton) {
             screen.removeButton(b);
         }
@@ -392,291 +468,341 @@ public class PageController{
         screen.addButton(buttonChestObjects[0]);
     }
 
+    void createCraftGrid(){
+        int x = (screen.width) / 2 + 63;
+        int y = (screen.height) / 2 - 102;
+        int size = 18;
+        int x_padding = 0;
+        int y_padding = 0;
+        CustomImageButton buttonObject = new CustomImageButton(x-60 + ((size+x_padding)), y+8+36, size, size, Component.literal(""), (e)->{}, null,-1);
+        craftGrid.add(buttonObject);
+        screen.addButton(buttonObject);
+        for (int i = 0; i < 3; i++){
+            for (int z = 0; z < 3; z++){
+                CustomImageButton button = new CustomImageButton(x+5 + ((size+x_padding)*z), y+((size + y_padding)*i)+8+y_padding, size, size, Component.literal(""), (e)->{}, null,-1);
+                craftGrid.add(button);
+                screen.addButton(button);
+            }
+        }
+        loadingWidget = new LoadingWidget(x-52, y+10, 55, 33, Component.literal(""), this);
+        screen.addWidget(loadingWidget);
+        loadingWidget.createButton();
+        hideGrid();
+    }
+
+    void showGrid(){
+        if(!craftGridVisibility){
+            for(CustomImageButton button: craftGrid){
+                button.showButton();
+            }
+            loadingWidget.show();
+            craftGridVisibility = true;
+        }
+
+
+    }
+
+    void hideGrid(){
+        if(craftGridVisibility){
+            for(CustomImageButton button: craftGrid){
+                button.hideButton();
+            }
+            loadingWidget.hide();
+            craftGridVisibility = false;
+        }
+
+    }
+
     public void selectCraft(Item item){
-        try {
+        if(!this.isUsingAlternativeAlgorithm){
+            selectCraft_new(item);
+        }
+        else {
+            selectCraft_old(item);
+        }
+    }
+
+    public void selectCraftMultiple(Item item, int count){
+        if(!this.isUsingAlternativeAlgorithm){
+            selectCraftMultiple_new(item,count);
+        }
+        else {
+            selectCraftMultiple_old(item,count);
+        }
+    }
+
+    public void selectCraftAll(Item item){
+        if(!this.isUsingAlternativeAlgorithm){
+            selectCraftAll_new(item);
+        }
+        else {
+            selectCraftAll_old(item);
+        }
+    }
+
+    public void selectCraft_new(Item item){
+
             if (lock1.isLocked()) {
                 assert Minecraft.getInstance().player != null;
                 Minecraft.getInstance().player.sendSystemMessage(Component.literal("There is another process ongoing. Please wait until it finishes"));
                 return;
             }
             ArrayList<CraftableInfo> sequreChestList = Utils.deepCopyofCraftableInfo(this.chestList);
+            showGrid();
+            this.setCraftingGridValue(0, new ItemStack(item), 0);
+            loadingWidget.setNumber(1);
+            loadingWidget.initiateCraft();
+            this.setCraftingNumber(1);
+            rigthSidePageHasToHide = true;
             Thread thread = new Thread(() -> {
                 try {
                     lock1.lock();
-                    CopyOnWriteArrayList<CraftableInfo> rest = new CopyOnWriteArrayList<>();
-                    CopyOnWriteArrayList<CraftableInfo> result = new CopyOnWriteArrayList<>();
-                    Thread internThread = new Thread(() -> {
-                        try {
-                            ArrayList<CraftableInfo> internalRest = new ArrayList<>();
-                            result.addAll(Utils.getCraftableInfo(true, item, Utils.deepCopyofCraftableInfo(sequreChestList), new ArrayList<>(), internalRest, new IntHolder(0), new HashMap<>()));
-                            rest.addAll(internalRest);
-                            System.out.println("Termino hilo nivel 2");
-                            return;
-                        }
-                        catch (Exception e){
-                           System.out.println("Error de concurrencia nivel 2");
-                        }
-                    });
-                    internThread.start();
-
-                    try {
-                        internThread.join(10000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    if (isClosed) {
+                    ArrayList<Pair<CraftableInfo, Boolean>> rest = new ArrayList<>();
+                    IntHolder neededNum = new IntHolder(0);
+                    ArrayList<CraftableInfo>  result = Utils.getCraftableInfo(true, item, Utils.deepCopyofCraftableInfo(sequreChestList), new ArrayList<>(), rest, neededNum, new HashMap<>(), this, 1, new Holder<>(true));
+                    if (result == null) {
                         lock1.unlock();
                         return;
-                    } else if (internThread.isAlive()) { // Si el hilo todavía está en ejecución después de 5 segundos
-                        internThread.interrupt(); // Interrumpir el hilo
-                        assert Minecraft.getInstance().player != null;
-                        Minecraft.getInstance().player.sendSystemMessage(Component.literal("Waiting time out. Trying with the simplified algorithm..."));
-                        selectCraft_old(item);
-
-                    } else {
-
-                        Utils.substractCraftableLists(result, rest);
-                        ArrayList<CraftableInfo> needed = new ArrayList<>();
-                        ArrayList<CraftableInfo> inInventory = new ArrayList<>();
-                        Utils.separateItems(inInventory, needed, sequreChestList, new ArrayList<>(result));
-                        rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, new ArrayList<>(rest));
-                        rightPageHasToRender = true;
-                        System.out.println("Termino hilo nivel 1");
                     }
+                    ArrayList<CraftableInfo> sepRest = new ArrayList<>(rest.stream().map(x->x.first).toList());
+                    Utils.substractCraftableLists(result, sepRest);
+                    ArrayList<CraftableInfo> needed = new ArrayList<>();
+                    ArrayList<CraftableInfo> inInventory = new ArrayList<>();
+                    Utils.separateItems(inInventory, needed, sequreChestList, new ArrayList<>(result));
+                    rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, new ArrayList<>(sepRest));
+                    rightPageHasToRender = true;
+                    int state = neededNum.number == 0 ? 1:-1;
+                    this.setCraftingGridValue(0, new ItemStack(item), state);
+                    System.out.println("Termino hilo nivel 1");
                     lock1.unlock();
-                    return;
                 }
                 catch (Exception e){
                     System.out.println("Error de concurrencia nivel 1");
+                    e.printStackTrace();
                 }
             });
+            currentThread = thread;
             thread.start();
-        }
-        catch (Exception e){
-            System.out.println("Error de concurrencia nivel 0");
-        }
+
     }
 
-    public void selectCraftMultiple(Item item, int count){
+    public void selectCraftMultiple_new(Item item, int count){
         if(lock1.isLocked()){
             assert Minecraft.getInstance().player != null;
             Minecraft.getInstance().player.sendSystemMessage(Component.literal("There is another process ongoing. Please wait until it finishes"));
             return;
         }
+        this.setCraftingGridValue(0, new ItemStack(item), 0);
+        this.setCraftingNumber(1);
+        loadingWidget.setNumber(count);
+        loadingWidget.initiateCraft();
+        rigthSidePageHasToHide = true;
+        showGrid();
             Thread thread = new Thread(() -> {
                 lock1.lock();
                     ArrayList<CraftableInfo> result = new ArrayList<>();
                     ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
-                    ArrayList<CraftableInfo> rest = new ArrayList<>();
+                    ArrayList<Pair<CraftableInfo, Boolean>> rest = new ArrayList<>();
                     HashMap<Pair<Item, Integer>, Pair<Item, Boolean>> map = new HashMap<>();
-                    Thread internThread = new Thread(() -> {
-                        for (int i = 0; i < count; ++i) {
-                            Utils.combineLists(Utils.getCraftableInfo(true, item, chestCopy, new ArrayList<>(), rest, new IntHolder(0), map), result);
-                        }
-                    });
-                    internThread.start();
-                    try {
-                        internThread.join(10000); // Esperar a que el hilo termine durante un máximo de 5 segundos
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    if(isClosed){
+
+                for (int i = 0; i < count; ++i) {
+                    IntHolder neededNum = new IntHolder(0);
+                    Holder<Boolean> canCraft = new Holder<>(true);
+                    Utils.combineLists(Utils.getCraftableInfo(true, item, chestCopy, new ArrayList<>(), rest, neededNum, map, this, 1, canCraft), result);
+                    if(Thread.currentThread().isInterrupted()){
                         lock1.unlock();
                         return;
                     }
-                    else if (internThread.isAlive()) { // Si el hilo todavía está en ejecución después de 5 segundos
-                        internThread.interrupt(); // Interrumpir el hilo
-                        assert Minecraft.getInstance().player != null;
-                        Minecraft.getInstance().player.sendSystemMessage(Component.literal("Waiting time out. Trying with the simplified algorithm..."));
-                        selectCraftMultiple_old(item, count);
-
-                    } else {
-
-                        Utils.substractCraftableLists(result, rest);
-                        ArrayList<CraftableInfo> needed = new ArrayList<>();
-                        ArrayList<CraftableInfo> inInventory = new ArrayList<>();
-                        Utils.separateItems(inInventory, needed, this.chestList, result);
-                        rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, rest, count);
-                        rightPageHasToRender = true;
-                    }
+                    int state = neededNum.number == 0 && canCraft.value ? 1:-1;
+                    this.setCraftingGridValue(0, new ItemStack(item), state);
+                    this.setCraftingNumber(i+1);
+                }
+                ArrayList<CraftableInfo> sepRest = new ArrayList<>(rest.stream().map(x->x.first).toList());
+                Utils.substractCraftableLists(result, sepRest);
+                ArrayList<CraftableInfo> needed = new ArrayList<>();
+                ArrayList<CraftableInfo> inInventory = new ArrayList<>();
+                Utils.separateItems(inInventory, needed, this.chestList, result);
+                rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, sepRest, count);
+                rightPageHasToRender = true;
                 lock1.unlock();
             });
+            currentThread = thread;
             thread.start();
 
     }
 
-    public void selectCraftAll(Item item){
+    public void selectCraftAll_new(Item item){
         if(lock1.isLocked()){
             assert Minecraft.getInstance().player != null;
             Minecraft.getInstance().player.sendSystemMessage(Component.literal("There is another process ongoing. Please wait until it finishes"));
             return;
         }
+        this.setCraftingGridValue(0, new ItemStack(item), 0);
+        this.setCraftingNumber(1);
+        rigthSidePageHasToHide = true;
+        showGrid();
         Thread thread = new Thread(() -> {
             lock1.lock();
-                AtomicInteger count = new AtomicInteger();
-                ArrayList<CraftableInfo> result = new ArrayList<>();
-                ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
-                ArrayList<CraftableInfo> rest = new ArrayList<>();
-                ArrayList<CraftableInfo> needed = new ArrayList<>();
-                HashMap<Pair<Item, Integer>, Pair<Item, Boolean>> map = new HashMap<>();
-                Thread internThread = new Thread(() -> {
-                    do{
-                        needed.clear();
-                        Utils.combineLists(Utils.getCraftableInfo(true, item, chestCopy, new ArrayList<>(), rest, new IntHolder(0), map), result);
-                        Utils.substractCraftableLists(result,rest);
-                        ArrayList<CraftableInfo> inInventory = new ArrayList<>();
-                        Utils.separateItems(inInventory, needed, this.chestList, result);
-                        count.getAndIncrement();
-                    }while(needed.isEmpty());
-                });
-                internThread.start();
-                try {
-                    internThread.join(10000); // Esperar a que el hilo termine durante un máximo de 5 segundos
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                if(isClosed){
+            int count = 0;
+            ArrayList<CraftableInfo> result = new ArrayList<>();
+            ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
+            ArrayList<Pair<CraftableInfo, Boolean>> rest = new ArrayList<>();
+            HashMap<Pair<Item, Integer>, Pair<Item, Boolean>> map = new HashMap<>();
+            ArrayList<CraftableInfo> prevResult;
+            ArrayList<Pair<CraftableInfo, Boolean>> prevRest;
+            IntHolder neededNum = new IntHolder(0);
+            do{
+                this.setCraftingGridValue(0, new ItemStack(item), 1);
+                loadingWidget.setNumber(count);
+                this.setCraftingNumber(count);
+                prevResult = Utils.deepCopyofCraftableInfo(result);
+                prevRest = Utils.deepCopyofRest(rest);
+                Utils.combineLists(Utils.getCraftableInfo(true, item, chestCopy, new ArrayList<>(), rest, neededNum, map, this, 1, new Holder<>(true)), result);
+                count++;
+                if(Thread.currentThread().isInterrupted()){
                     lock1.unlock();
                     return;
                 }
-                else if (internThread.isAlive()) { // Si el hilo todavía está en ejecución después de 5 segundos
-                    internThread.interrupt(); // Interrumpir el hilo
-                    assert Minecraft.getInstance().player != null;
-                    Minecraft.getInstance().player.sendSystemMessage(Component.literal("Waiting time out. Trying with the simplified algorithm..."));
-                    selectCraftAll_old(item);
-                }
-                else{
-                    selectCraftMultiple(item, Math.max(1, count.get() -1));
-                }
+            }while(neededNum.number == 0);
+            if(count <= 1){
+                prevResult = result;
+                prevRest = rest;
+                this.setCraftingGridValue(1, new ItemStack(item), -1);
+                loadingWidget.setNumber(count);
+                this.setCraftingNumber(count);
+            }
+            ArrayList<CraftableInfo> sepRest = new ArrayList<>(prevRest.stream().map(x->x.first).toList());
+            Utils.substractCraftableLists(prevResult, sepRest);
+            ArrayList<CraftableInfo> afterNeeded = new ArrayList<>();
+            ArrayList<CraftableInfo> afterInInventory = new ArrayList<>();
+            Utils.separateItems(afterInInventory, afterNeeded, this.chestList, prevResult);
+
+            rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, afterInInventory, afterNeeded, sepRest, count-1);
+            rightPageHasToRender = true;
             lock1.unlock();
         });
+        currentThread = thread;
         thread.start();
     }
 
     public void selectCraft_old(Item item){
+        this.setCraftingGridValue(0, new ItemStack(item), 0);
+        this.setCraftingNumber(1);
+        rigthSidePageHasToHide = true;
+        showGrid();
         Thread thread = new Thread(() -> {
             lock1.lock();
-                ArrayList<CraftableInfo> rest = new ArrayList<>();
-                ArrayList<CraftableInfo> result = new ArrayList<>();
-                Thread internThread = new Thread(() -> {
-                    result.addAll(Utils.getCraftableInfo_old(item, Utils.deepCopyofCraftableInfo(this.chestList), new ArrayList<>(), rest));
-                });
-
-                internThread.start();
-                try {
-                    internThread.join(10000); // Esperar a que el hilo termine durante un máximo de 5 segundos
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                if(isClosed){
-                    lock1.unlock();
-                    return;
-                }
-                else if (internThread.isAlive()) { // Si el hilo todavía está en ejecución después de 5 segundos
-                    internThread.interrupt(); // Interrumpir el hilo
-                    assert Minecraft.getInstance().player != null;
-                    Minecraft.getInstance().player.sendSystemMessage(Component.literal("Waiting time out. The requested item is too complex to get its crafting information in a reasonable time"));
-
-                } else {
-                    Utils.substractCraftableLists(result, rest);
-                    ArrayList<CraftableInfo> needed = new ArrayList<>();
-                    ArrayList<CraftableInfo> inInventory = new ArrayList<>();
-                    Utils.separateItems(inInventory, needed, this.chestList, result);
-                    rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, rest);
-                    rightPageHasToRender = true;
-
-                }
+            ArrayList<CraftableInfo> rest = new ArrayList<>();
+            ArrayList<CraftableInfo> result = Utils.getCraftableInfo_old(true, item, Utils.deepCopyofCraftableInfo(this.chestList), new ArrayList<>(), rest, this, 1);
+            if(result == null){
+                lock1.unlock();
+                return;
+            }
+            Utils.substractCraftableLists(result, rest);
+            ArrayList<CraftableInfo> needed = new ArrayList<>();
+            ArrayList<CraftableInfo> inInventory = new ArrayList<>();
+            Utils.separateItems(inInventory, needed, this.chestList, result);
+            if(needed.isEmpty()){
+                this.setCraftingGridValue(0, new ItemStack(item), 1);
+            }
+            else {
+                this.setCraftingGridValue(0, new ItemStack(item), -1);
+            }
+            rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, rest);
+            rightPageHasToRender = true;
             lock1.unlock();
         });
-
+        currentThread = thread;
         thread.start();
     }
     public void selectCraftMultiple_old(Item item, int count){
-
-
+        this.setCraftingGridValue(0, new ItemStack(item), 0);
+        this.setCraftingNumber(1);
+        rigthSidePageHasToHide = true;
+        showGrid();
         Thread thread = new Thread(() -> {
             lock1.lock();
-                ArrayList<CraftableInfo> result = new ArrayList<>();
-                ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
-                ArrayList<CraftableInfo> rest = new ArrayList<>();
-                Thread internThread = new Thread(() -> {
-                    for (int i = 0; i < count; ++i) {
-                        Utils.combineLists(Utils.getCraftableInfo_old(item, chestCopy, new ArrayList<>(), rest), result);
-                    }
-                });
-
-                internThread.start();
-                try {
-                    internThread.join(10000); // Esperar a que el hilo termine durante un máximo de 5 segundos
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                if(isClosed){
+            ArrayList<CraftableInfo> result = new ArrayList<>();
+            ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
+            ArrayList<CraftableInfo> rest = new ArrayList<>();
+            for (int i = 0; i < count; ++i) {
+                Utils.combineLists(Utils.getCraftableInfo_old(true, item, chestCopy, new ArrayList<>(), rest, this, 1), result);
+                this.setCraftingNumber(i + 1);
+                if(Thread.currentThread().isInterrupted()){
                     lock1.unlock();
                     return;
                 }
-                else if (internThread.isAlive()) { // Si el hilo todavía está en ejecución después de 5 segundos
-                    internThread.interrupt(); // Interrumpir el hilo
-                    assert Minecraft.getInstance().player != null;
-                    Minecraft.getInstance().player.sendSystemMessage(Component.literal("Waiting time out. The requested item is too complex to get its crafting information in a reasonable time"));
-
-                } else {
-                    Utils.substractCraftableLists(result, rest);
-                    ArrayList<CraftableInfo> needed = new ArrayList<>();
-                    ArrayList<CraftableInfo> inInventory = new ArrayList<>();
-                    Utils.separateItems(inInventory, needed, this.chestList, result);
-                    rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, rest, count);
-                    rightPageHasToRender = true;
-                }
+            }
+            Utils.substractCraftableLists(result, rest);
+            ArrayList<CraftableInfo> needed = new ArrayList<>();
+            ArrayList<CraftableInfo> inInventory = new ArrayList<>();
+            Utils.separateItems(inInventory, needed, this.chestList, result);
+            if(needed.isEmpty()){
+                this.setCraftingGridValue(0, new ItemStack(item), 1);
+            }
+            else {
+                this.setCraftingGridValue(0, new ItemStack(item), -1);
+            }
+            rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, inInventory, needed, rest, count);
+            rightPageHasToRender = true;
             lock1.unlock();
         });
-
+        currentThread = thread;
         thread.start();
 
     }
 
     public void selectCraftAll_old(Item item){
+        this.setCraftingGridValue(0, new ItemStack(item), 0);
+        rigthSidePageHasToHide = true;
+        showGrid();
         Thread thread = new Thread(() -> {
             lock1.lock();
-                AtomicInteger count = new AtomicInteger();
-                ArrayList<CraftableInfo> result = new ArrayList<>();
-                ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
-                ArrayList<CraftableInfo> rest = new ArrayList<>();
-                ArrayList<CraftableInfo> needed = new ArrayList<>();
-                Thread internThread = new Thread(() -> {
-                    do {
-                        needed.clear();
-                        Utils.combineLists(Utils.getCraftableInfo_old(item, chestCopy, new ArrayList<>(), rest), result);
-                        Utils.substractCraftableLists(result, rest);
-                        ArrayList<CraftableInfo> inInventory = new ArrayList<>();
-                        Utils.separateItems(inInventory, needed, this.chestList, result);
-                        count.getAndIncrement();
-                    } while (needed.isEmpty());
-                });
-                internThread.start();
-                try {
-                    internThread.join(10000); // Esperar a que el hilo termine durante un máximo de 5 segundos
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                if(isClosed){
+            int count = 0;
+            ArrayList<CraftableInfo> result = new ArrayList<>();
+            ArrayList<CraftableInfo> chestCopy = Utils.deepCopyofCraftableInfo(this.chestList);
+            ArrayList<CraftableInfo> rest = new ArrayList<>();
+            ArrayList<CraftableInfo> needed = new ArrayList<>();
+            ArrayList<CraftableInfo> prevResult;
+            ArrayList<CraftableInfo> prevRest;
+            do {
+                this.setCraftingGridValue(0, new ItemStack(item), 1);
+                loadingWidget.setNumber(count);
+                this.setCraftingNumber(count);
+                prevResult = Utils.deepCopyofCraftableInfo(result);
+                prevRest = Utils.deepCopyofCraftableInfo(rest);
+                Utils.combineLists(Utils.getCraftableInfo_old(true, item, chestCopy, new ArrayList<>(), rest, this, 1), result);
+                Utils.substractCraftableLists(result, rest);
+                ArrayList<CraftableInfo> inInventory = new ArrayList<>();
+                Utils.separateItems(inInventory, needed, this.chestList, result);
+                count++;
+                if(Thread.currentThread().isInterrupted()){
                     lock1.unlock();
                     return;
                 }
-                else if (internThread.isAlive()) { // Si el hilo todavía está en ejecución después de 5 segundos
-                    internThread.interrupt(); // Interrumpir el hilo
-                    assert Minecraft.getInstance().player != null;
-                    Minecraft.getInstance().player.sendSystemMessage(Component.literal("Waiting time out. The requested item is too complex to get its crafting information in a reasonable time"));
-
-                } else {
-                    selectCraftMultiple(item, Math.max(1, count.get() - 1));
-                }
+            } while (needed.isEmpty());
+            //selectCraftMultiple(item, Math.max(1, count.get() - 1));
+            if(count <= 1){
+                prevResult = result;
+                prevRest = rest;
+                this.setCraftingGridValue(0, new ItemStack(item), -1);
+                loadingWidget.setNumber(count);
+                this.setCraftingNumber(count);
+            }
+            Utils.substractCraftableLists(prevResult, prevRest);
+            ArrayList<CraftableInfo> afterNeeded = new ArrayList<>();
+            ArrayList<CraftableInfo> afterInInventory = new ArrayList<>();
+            Utils.separateItems(afterInInventory, afterNeeded, this.chestList, prevResult);
+            rightBufferPage = new CraftableMenu(this, screen, 100, 100, item, afterInInventory, afterNeeded, prevRest, count-1);
+            rightPageHasToRender = true;
+            lock1.unlock();
             lock1.unlock();
         });
 
         thread.start();
     }
     public void selectExtract(Item item){
+        this.hideGrid();
         if(rigthSidePage != null) rigthSidePage.deletePage();
         int remaining = 0;
         for(CraftableInfo info: chestList){
@@ -690,6 +816,7 @@ public class PageController{
 
 
     public void selectExtractMultiple(Item item, int count){
+        this.hideGrid();
         if(rigthSidePage != null) rigthSidePage.deletePage();
         int remaining = 0;
         for(CraftableInfo info: chestList){
@@ -702,6 +829,7 @@ public class PageController{
     }
 
     public void selectExtractAll(Item item){
+        this.hideGrid();
         if(rigthSidePage != null) rigthSidePage.deletePage();
         int remaining = 0;
         for(CraftableInfo info: chestList){
@@ -732,7 +860,15 @@ public class PageController{
     }
 
     public void onClose() {
+        cancelProcess();
         isClosed = true;
+    }
+
+    public void cancelProcess(){
+        if(currentThread != null && currentThread.isAlive()){
+            currentThread.interrupt();
+        }
+        loadingWidget.interruptCraft();
     }
 
 

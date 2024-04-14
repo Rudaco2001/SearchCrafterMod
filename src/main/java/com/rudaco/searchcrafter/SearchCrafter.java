@@ -71,9 +71,6 @@ public class SearchCrafter
 
 
 
-
-
-
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
     @Mod.EventBusSubscriber(modid = MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents
@@ -90,6 +87,7 @@ public class SearchCrafter
         public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event){
             event.registerBlockEntityRenderer(ModBlockEntities.SEARCH_CRAFTING_TABLE.get(), RendererBlock::new);
         }
+
     }
 
 

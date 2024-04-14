@@ -25,6 +25,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
@@ -78,6 +79,11 @@ public class SearchCrafterTable extends BlockEntity implements MenuProvider{
             return;
         }
         this.itemHandler.setStackInSlot(OUTPUT_SLOT, new ItemStack(item, number));
+    }
+
+    @Override
+    public AABB getRenderBoundingBox() {
+        return new AABB(this.worldPosition.getX()+range.x+1,this.worldPosition.getY() + range.y+1,this.worldPosition.getZ() + range.z+1,this.worldPosition.getX()-range.x, this.worldPosition.getY()-range.y, this.worldPosition.getZ()-range.z);
     }
 
     public boolean canGenerateResultItem(Item item) {

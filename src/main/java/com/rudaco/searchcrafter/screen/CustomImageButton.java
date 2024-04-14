@@ -10,11 +10,15 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.client.event.RenderTooltipEvent;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public class CustomImageButton extends Button {
@@ -26,6 +30,8 @@ public class CustomImageButton extends Button {
     int height;
     public float maxScale = 1;
     int number = -1;
+    int state = 0;
+boolean hidden = false;
 
     ItemStack item;
     public CustomImageButton(int pX, int pY, int pWidth, int pHeight, Component pMessage, OnPress pOnPress, ItemStack item){
@@ -50,10 +56,18 @@ public class CustomImageButton extends Button {
         this.number = number;
     }
 
+
     @Override
     public void renderButton(PoseStack pPoseStack, int pMouseX, int pMouseY, float pPartialTick) {
         //RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        if(hidden) return;
 
+        if(state == -1){
+            fill(pPoseStack, x,y,x+width,y+height,0xAAB60502);
+        }
+        else if(state == 1){
+            fill(pPoseStack, x,y,x+width,y+height,0xAA98BB77);
+        }
         int centered_x = x;
         int centered_y = y;
         if(this.width > 16){
@@ -62,10 +76,15 @@ public class CustomImageButton extends Button {
         if(this.height > 16){
             centered_y += (this.height-16)/2;
         }
-        Minecraft.getInstance().getItemRenderer().renderAndDecorateItem(item, centered_x, centered_y);
+        if(item != null){
+            pPoseStack.pushPose();
+            pPoseStack.scale(0.1f,0.1f,1);
+            Minecraft.getInstance().getItemRenderer().renderGuiItem(item, centered_x, centered_y);
+            pPoseStack.popPose();
+        }
+
         drawBorderedRect(pPoseStack, this.x, this.y, this.x + this.width, this.y + this.height, 1,  0xFF000000);
         if(number != -1){
-
             String numberString = String.valueOf(number);
             if(number >= 1000){
                 numberString = ((float) (number / 100))/10 + "k";
@@ -99,17 +118,36 @@ public class CustomImageButton extends Button {
         //this.drawText(pPoseStack,this.width-10);
     }
 
+    void hideButton(){
+        hidden = true;
+    }
 
+    void showButton(){
+        hidden = false;
+    }
 
+    void setState(int newState){
+        state = newState;
+    }
 
+    public void setItem(ItemStack item){
+        this.item = item;
+    }
+
+    public void setNumber(int number){
+        this.number = number;
+    }
 
     public void showTooltip(PoseStack pPoseStack, int pMouseX, int pMouseY){
-        if (this.isHoveredOrFocused()) {
+        if(hidden) return;
+        if (this.isHoveredOrFocused() && this.item != null) {
             pPoseStack.pushPose();
             pPoseStack.translate(0,0, 500);
-            int textWidth = Minecraft.getInstance().font.width(item.getHoverName());
+            String hoverName = item.getHoverName().getString();
+            if(number != -1) hoverName += " - " + number;
+            int textWidth = Minecraft.getInstance().font.width(hoverName);
             AbstractButton.fill(pPoseStack, pMouseX-3, pMouseY-4 + 10, pMouseX + textWidth+3, pMouseY + 9 + 10 + 1, 0xFF000000);
-            drawString(pPoseStack, Minecraft.getInstance().font, item.getHoverName(), pMouseX, pMouseY + 10, 0xFFFFFFFF);
+            drawString(pPoseStack, Minecraft.getInstance().font, hoverName, pMouseX, pMouseY + 10, 0xFFFFFFFF);
             drawBorderedRect(pPoseStack, pMouseX-2, pMouseY-3 + 10, pMouseX + textWidth+2, pMouseY + 9 + 10, 1, 0xFFFFFFFF);
             pPoseStack.popPose();
         }
