@@ -631,6 +631,7 @@ public class PageController{
         this.setCraftingNumber(1);
         loadingWidget.setCurrentNumber(0);
         loadingWidget.setNumber(1);
+        loadingWidget.initiateCraft();
         rigthSidePageHasToHide = true;
         showGrid();
         Thread thread = new Thread(() -> {
@@ -680,6 +681,7 @@ public class PageController{
     public void selectCraft_old(Item item){
         this.setCraftingGridValue(0, new ItemStack(item), 0);
         this.setCraftingNumber(1);
+        loadingWidget.initiateCraft();
         rigthSidePageHasToHide = true;
         showGrid();
         Thread thread = new Thread(() -> {
@@ -710,6 +712,8 @@ public class PageController{
     public void selectCraftMultiple_old(Item item, int count){
         this.setCraftingGridValue(0, new ItemStack(item), 0);
         this.setCraftingNumber(1);
+        loadingWidget.setCurrentNumber(0);
+        loadingWidget.initiateCraft();
         rigthSidePageHasToHide = true;
         showGrid();
         Thread thread = new Thread(() -> {
@@ -746,6 +750,9 @@ public class PageController{
 
     public void selectCraftAll_old(Item item){
         this.setCraftingGridValue(0, new ItemStack(item), 0);
+        this.setCraftingNumber(1);
+        loadingWidget.setCurrentNumber(0);
+        loadingWidget.initiateCraft();
         rigthSidePageHasToHide = true;
         showGrid();
         Thread thread = new Thread(() -> {
